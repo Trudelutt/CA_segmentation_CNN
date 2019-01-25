@@ -11,13 +11,13 @@ from preprossesing import *
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 from metric import *
-from dice_coefficient_loss import dice_coefficient_loss, dice_coefficient
+from loss_function import dice_coefficient_loss, dice_coefficient
 
 
 def gpu_config():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.9
+    config.gpu_options.per_process_gpu_memory_fraction = 0.4
     #set_session(tf.Session(config = config))
     sess = tf.Session(config=config)
     sess.run(tf.global_variables_initializer())
@@ -51,13 +51,13 @@ if __name__ == "__main__":
     overwrite = False
     gpu_config()
     model_name = "BVNet"
-    #Hepatic Vessel has label HV
-    label = "HV"
+    # label must be noe of the coronary arteries
+    label = "RCA"
     modelpath = model_name+ "_"+ label
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
-    train_files, val_files, test_files = get_data_files(data="HV", label=label)
+    train_files, val_files, test_files = get_data_files( label=label)
     if  not overwrite:
         prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
     else:
