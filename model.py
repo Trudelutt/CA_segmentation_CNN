@@ -6,7 +6,7 @@ from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as keras
-from dice_coefficient_loss import dice_coefficient_loss, dice_coefficient
+from loss_function import dice_coefficient_loss, dice_coefficient
 from metric import *
 
 

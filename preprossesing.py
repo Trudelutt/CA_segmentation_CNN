@@ -24,20 +24,13 @@ def split_train_val_test(samples):
     print(len(train_files), len(val_files), len(test_files))
     return train_files, val_files, test_files
 
-#TODO check if any information is lost here
+
 def preprosses_images(image, label, tag):
     image -= np.min(image)
     image = image/ np.max(image)
     image -= np.mean(image)
     image = image / np.std(image)
-
-    if tag == "HV":
-        label[label == 2] = 0
-        #print("Removing tumor mask")
-        #print(np.unique(label))
-        return image[:,128:-128,200:-56], label[:,128:-128,200:-56]
-    else:
-        return image[:,100:-156, 80:-176], label[:,100:-156, 80:-176]
+    return image, label
 
 
 
@@ -123,22 +116,12 @@ def add_neighbour_slides_training_data(image, label):
 
     return image_with_channels, label
 
-def fetch_training_data_hapaticv_files():
-    training_data_files = list()
-    path = "../Task08_HepaticVessel/"
-    count = 0
-    with open("../Task08_HepaticVessel/dataset.json", "r+", encoding="utf-8") as f:
-        data = json.load(f)
-        for i in range(len(data["training"])):
-            subject_files = list()
-            subject_files.append(path + data["training"][i]["image"].replace("./", ""))
-            subject_files.append(path + data["training"][i]["label"].replace("./", ""))
-            training_data_files.append(tuple(subject_files))
-    return training_data_files
 
 
 def fetch_training_data_ca_files(label="LM"):
     path = glob("../st.Olav/*/*/*/")
+    #path = glob("../../st.Olav/*/*/*/")
+    print(path)
     training_data_files = list()
     for i in range(len(path)):
         try:
@@ -206,12 +189,8 @@ def write_pridiction_to_file(label_array, prediction_array, tag, path="./predict
 
 
 # Assume to have some sitk image (itk_image) and label (itk_label)
-def get_data_files(data="ca", label="LM"):
-    if data == "ca":
-        files = fetch_training_data_ca_files(label)
-    else:
-        files = fetch_training_data_hapaticv_files()
-
+def get_data_files( label="LM"):
+    files = fetch_training_data_ca_files(label)
     print("files: " + str(len(files)))
     return split_train_val_test(files)
 
@@ -221,7 +200,6 @@ def get_train_data_slices(train_files, tag = "LM"):
     labeldata = []
     count_slices = 0
     for element in train_files:
-        #if(element[0] == "../st.Olav/CT_FFR_Pilot_7/CT_FFR_Pilot_7_Segmentation/CT_FFR_Pilot_7_Segmentation_0000/CT_FFR_Pilot_7_Segmentation_0000_CCTA.nii.gz"):
         print(element[0])
         numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1], tag)
         i, l = add_neighbour_slides_training_data(numpy_image, numpy_label)
@@ -266,10 +244,10 @@ def write_all_labels(path):
 
 
 if __name__ == "__main__":
-    train_files, val_files, test_files = get_data_files(data="HV", label="HV")
+    train_files, val_files, test_files = get_data_files( label="LM")
     #for i in range(len(train_files)):
     n= len(test_files)
     print(test_files)
-    test_x, test_y = get_prediced_image_of_test_files(test_files, 0, tag="HV")
-    train_data, label_data = get_train_data_slices(train_files[:1], tag ="HV")
+    test_x, test_y = get_prediced_image_of_test_files(test_files, 0, tag="LM")
+    train_data, label_data = get_train_data_slices(train_files[:1], tag ="LM")
     write_pridiction_to_file(test_y, label_data, tag="HV", path="./predictions/prediction.nii.gz", label_path=test_files[0][1])
