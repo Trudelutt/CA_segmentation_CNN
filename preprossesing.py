@@ -169,21 +169,15 @@ def write_pridiction_to_file(label_array, prediction_array, tag, path="./predict
     meta_sitk = sitk.ReadImage(label_path)
     print("INSIDE write prediction!!!")
     print(prediction_array.shape)
-    original_origin = meta_sitk.GetOrigin()
-    if tag =="HV":
-        new_origin =[original_origin[0], original_origin[1]+128, original_origin[2]+200]
-    else:
-        new_origin =[original_origin[0], original_origin[1]+100, original_origin[2]+80]
+
+
+
     sitk_image = sitk.GetImageFromArray(label_array)
-    sitk_image.SetOrigin(new_origin)
-    sitk_image.SetSpacing(meta_sitk.GetSpacing())
-    sitk_image.SetDirection(meta_sitk.GetDirection())
+    sitk_image.CopyInformation(meta_sitk)
     sitk.WriteImage(sitk_image, path.replace("prediction.nii", "gt.nii"))
 
     predsitk_image = sitk.GetImageFromArray(prediction_array)
-    predsitk_image.SetOrigin(new_origin)
-    predsitk_image.SetSpacing(meta_sitk.GetSpacing())
-    predsitk_image.SetDirection(meta_sitk.GetDirection())
+    predsitk_image.CopyInformation(meta_sitk)
     sitk.WriteImage(predsitk_image, path)
     print("Writing prediction is done...")
 

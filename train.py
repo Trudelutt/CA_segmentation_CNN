@@ -48,7 +48,7 @@ def evaluation(model, test_files, label):
 
 
 if __name__ == "__main__":
-    overwrite = False
+    overwrite = True
     gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries

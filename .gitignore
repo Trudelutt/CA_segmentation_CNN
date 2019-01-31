@@ -104,6 +104,6 @@ venv.bak/
 .mypy_cache/
 
 # folders
-model/
+models/
 history/
 predictions/
