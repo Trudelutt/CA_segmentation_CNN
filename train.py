@@ -12,6 +12,7 @@ import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 from metric import *
 from loss_function import dice_coefficient_loss, dice_coefficient
+from test import test
 
 
 def gpu_config():
@@ -48,7 +49,7 @@ def evaluation(model, test_files, label):
 
 
 if __name__ == "__main__":
-    overwrite = True
+    overwrite = False
     gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
@@ -71,9 +72,11 @@ if __name__ == "__main__":
         else:
             model_name="unet"
             model = unet(input_size =train_data.shape[1:])
-        train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
-        prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-    for i in range(len(test_files)):
+        #train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
+    print("Getting prediction model")
+    prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
+    test(test_files, prediction_model)
+    """for i in range(len(test_files)):
         pred_sample, pred_label = get_prediced_image_of_test_files(test_files, i, tag=label)
         predict_model(prediction_model, pred_sample, pred_label, name=modelpath+"_"+str(i)+"_", label=label, label_path=test_files[i][1])
-    evaluation(prediction_model, test_files, label)
+    evaluation(prediction_model, test_files, label)"""
