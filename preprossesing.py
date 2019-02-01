@@ -121,7 +121,6 @@ def add_neighbour_slides_training_data(image, label):
 def fetch_training_data_ca_files(label="LM"):
     path = glob("../st.Olav/*/*/*/")
     #path = glob("../../st.Olav/*/*/*/")
-    print(path)
     training_data_files = list()
     for i in range(len(path)):
         try:
@@ -167,7 +166,6 @@ def get_prediced_image_of_test_files(files, number, tag):
 
 def write_pridiction_to_file(label_array, prediction_array, tag, path="./predictions/prediction.nii.gz", label_path=None):
     meta_sitk = sitk.ReadImage(label_path)
-    print("INSIDE write prediction!!!")
     print(prediction_array.shape)
 
 

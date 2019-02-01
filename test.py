@@ -123,7 +123,7 @@ def test(test_list, model):
         num_slices = img_data.shape[0]
         pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag="RCA")
         print("gathered pred_sample")
-        p = model.predict(pred_sample,  batch_size=1, verbose=1)
+        outout_array = model.predict(pred_sample,  batch_size=1, verbose=1)
         """output_array = eval_model.predict_generator(generate_test_batches(args.data_root_dir, [img[:1]],
                                                                           net_input_shape,
                                                                           batchSize=args.batch_size,
@@ -148,12 +148,12 @@ def test(test_list, model):
         output_mask.CopyInformation(sitk_img)
 
         print('Saving Output')
-        sitk.WriteImage(output_img, join(raw_out_dir, img[i][0][:-7] + '_raw_output' + img[i][0][-7:]))
-        sitk.WriteImage(output_mask, join(fin_out_dir, img[i][0][:-7] + '_final_output' + img[i][0][-7:]))
+        sitk.WriteImage(output_img, join(raw_out_dir, img[0][-39:-7] + '_raw_output' + img[0][-7:]))
+        sitk.WriteImage(output_mask, join(fin_out_dir, img[0][-39:-7] + '_final_output' + img[0][-7:]))
 
         # Load gt mask
         #TODO change to get correcr mask name
-        sitk_mask = sitk.ReadImage(img[i][1])
+        sitk_mask = sitk.ReadImage(img[1])
         gt_data = sitk.GetArrayFromImage(sitk_mask)
 
         # Plot Qual Figure
@@ -184,7 +184,7 @@ def test(test_list, model):
         fig = plt.gcf()
         fig.suptitle(img[0][:-7])
 
-        plt.savefig(join(fig_out_dir, img[0][:-7] + '_qual_fig' + '.png'),
+        plt.savefig(join(fig_out_dir, img[0][-39:-7] + '_qual_fig' + '.png'),
                     format='png', bbox_inches='tight')
         plt.close('all')
         break
