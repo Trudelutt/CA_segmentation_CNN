@@ -18,7 +18,7 @@ from test import test
 def gpu_config():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.4
+    config.gpu_options.per_process_gpu_memory_fraction = 0.8
     #set_session(tf.Session(config = config))
     sess = tf.Session(config=config)
     sess.run(tf.global_variables_initializer())
@@ -50,7 +50,7 @@ def evaluation(model, test_files, label):
 
 if __name__ == "__main__":
     overwrite = True
-    #gpu_config()
+    gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
     label = "both"
