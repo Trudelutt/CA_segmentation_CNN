@@ -50,10 +50,10 @@ def evaluation(model, test_files, label):
 
 if __name__ == "__main__":
     overwrite = True
-    gpu_config()
+    #gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
-    label = "RCA"
+    label = "both"
     modelpath = model_name+ "_"+ label
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}

@@ -123,7 +123,7 @@ def test(test_list, model):
         num_slices = img_data.shape[0]
         pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag="RCA")
         print("gathered pred_sample")
-        outout_array = model.predict(pred_sample,  batch_size=1, verbose=1)
+        output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
         """output_array = eval_model.predict_generator(generate_test_batches(args.data_root_dir, [img[:1]],
                                                                           net_input_shape,
                                                                           batchSize=args.batch_size,

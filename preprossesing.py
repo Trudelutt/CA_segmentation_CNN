@@ -35,10 +35,19 @@ def preprosses_images(image, label, tag):
 
 
 def get_preprossed_numpy_arrays_from_file(image_path, label_path, tag):
-    sitk_image  = sitk.ReadImage(image_path)
-    sitk_label  = sitk.ReadImage(label_path )
+    sitk_image  = sitk.ReadImage(image_path, sitk.sitkFloat32)
     numpy_image = sitk.GetArrayFromImage(sitk_image)
-    numpy_label = sitk.GetArrayFromImage(sitk_label)
+    if len(label_path) == 2:
+        sitk_label  = sitk.ReadImage(label_path[0], sitk.sitkFloat32)
+        numpy_label = sitk.GetArrayFromImage(sitk_label)
+        sitk_label  = sitk.ReadImage(label_path[1], sitk.sitkFloat32 )
+        numpy_label += sitk.GetArrayFromImage(sitk_label)
+        #write_pridiction_to_file(numpy_image, numpy_label, tag="both", path="./predictions/prediction.nii.gz", label_path=image_path)
+
+    else:
+        sitk_label  = sitk.ReadImage(label_path )
+        numpy_label = sitk.GetArrayFromImage(sitk_label)
+
     return preprosses_images(numpy_image, numpy_label, tag)
 
 def remove_slices_with_just_background(image, label):
@@ -125,7 +134,10 @@ def fetch_training_data_ca_files(label="LM"):
     for i in range(len(path)):
         try:
             data_path = glob(path[i] + "*CCTA.nii.gz")[0]
-            label_path = glob(path[i] + "*" + label + ".nii.gz")[0]
+            if(label =="both"):
+                label_path = [glob(path[i] + "*LM.nii.gz")[0], glob(path[i] + "*RCA.nii.gz")[0]]
+            else:
+                label_path = glob(path[i] + "*" + label + ".nii.gz")[0]
         except IndexError:
             print("out of range for %s" %(path[i]))
         else:
