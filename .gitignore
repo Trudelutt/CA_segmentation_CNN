@@ -103,6 +103,11 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+.keras/
+.config/
+.nv/
+.bash_history
+
 # folders
 models/
 history/

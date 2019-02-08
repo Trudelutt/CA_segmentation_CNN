@@ -49,7 +49,7 @@ def threshold_mask(raw_output, threshold):
     elif len(props):
         thresholded_mask[all_labels == props[0].label] = 1
 
-    thresholded_mask = scipy.ndimage.morphology.binary_fill_holes(thresholded_mask).astype(np.uint8)
+    #thresholded_mask = scipy.ndimage.morphology.binary_fill_holes(thresholded_mask).astype(np.uint8)
 
     return thresholded_mask
 
@@ -187,8 +187,5 @@ def test(test_list, model):
         plt.savefig(join(fig_out_dir, img[0][-39:-7] + '_qual_fig' + '.png'),
                     format='png', bbox_inches='tight')
         plt.close('all')
-        break
-
-
 
     print('Done.')

@@ -15,13 +15,13 @@ from loss_function import dice_coefficient_loss, dice_coefficient
 from test import test
 
 
-def gpu_config():
+"""def gpu_config():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
     config.gpu_options.per_process_gpu_memory_fraction = 0.8
     #set_session(tf.Session(config = config))
     sess = tf.Session(config=config)
-    sess.run(tf.global_variables_initializer())
+    sess.run(tf.global_variables_initializer())"""
 
 
 def train_model(model, input, target, val_x, val_y, modelpath):
@@ -29,7 +29,7 @@ def train_model(model, input, target, val_x, val_y, modelpath):
 
     model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
     model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
-    history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=[model_checkpoint, model_earlyStopp, TerminateOnNaN()])
+    history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=1, epochs=500, verbose=1, callbacks=[model_checkpoint, model_earlyStopp, TerminateOnNaN()])
     with open('./history/'+ modelpath + '.json', 'w') as f:
         json.dump(history.history, f)
         print("Saved history....")
@@ -50,7 +50,7 @@ def evaluation(model, test_files, label):
 
 if __name__ == "__main__":
     overwrite = True
-    gpu_config()
+    #gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
     label = "both"
@@ -66,13 +66,10 @@ if __name__ == "__main__":
         print("Done geting training slices...")
         val_data, val_label = get_slices(val_files, label)
         print("Done geting validation slices...")
-
         if model_name == "BVNet":
             model = BVNet(input_size =train_data.shape[1:])
-        else:
-            model_name="unet"
-            model = unet(input_size =train_data.shape[1:])
-        #train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
+
+        train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
     print("Getting prediction model")
     prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
     test(test_files, prediction_model)

@@ -250,8 +250,8 @@ def write_all_labels(path):
 if __name__ == "__main__":
     train_files, val_files, test_files = get_data_files( label="LM")
     #for i in range(len(train_files)):
-    n= len(test_files)
+    """n= len(test_files)
     print(test_files)
     test_x, test_y = get_prediced_image_of_test_files(test_files, 0, tag="LM")
     train_data, label_data = get_train_data_slices(train_files[:1], tag ="LM")
-    write_pridiction_to_file(test_y, label_data, tag="HV", path="./predictions/prediction.nii.gz", label_path=test_files[0][1])
+    write_pridiction_to_file(test_y, label_data, tag="HV", path="./predictions/prediction.nii.gz", label_path=test_files[0][1])"""
