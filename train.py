@@ -23,13 +23,19 @@ from test import test
     sess = tf.Session(config=config)
     sess.run(tf.global_variables_initializer())"""
 
+def getCallBacks(modelpath):
+    model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
+    model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
+    return [model_checkpoint, model_earlyStopp, TerminateOnNaN()]
+
+
 
 def train_model(model, input, target, val_x, val_y, modelpath):
     print("Inside training")
 
-    model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
-    model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
-    history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=1, epochs=500, verbose=1, callbacks=[model_checkpoint, model_earlyStopp, TerminateOnNaN()])
+    #model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
+    #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
+    history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=1, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
     with open('./history/'+ modelpath + '.json', 'w') as f:
         json.dump(history.history, f)
         print("Saved history....")

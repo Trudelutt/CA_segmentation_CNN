@@ -112,3 +112,4 @@ venv.bak/
 models/
 history/
 predictions/
+results/

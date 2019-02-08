@@ -114,7 +114,7 @@ def BVNet(pretrained_weights = None,input_size = (256,256, 5)):
     outputs = Conv2D(1, (1, 1), activation='sigmoid') (c9)
 
     model = Model(inputs=[inputs], outputs=[outputs])
-    model.compile(optimizer='adam', loss=dice_coefficient_loss, metrics=[binary_accuracy, dice_coefficient, recall, precision])
+    model.compile(optimizer='adam', loss=dice_coefficient_loss,loss_weights=pretrained_weights, metrics=[binary_accuracy, dice_coefficient, recall, precision])
     model.summary()
     return model
 

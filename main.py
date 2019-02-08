@@ -10,6 +10,7 @@ from time import gmtime, strftime
 time = strftime("%Y-%m-%d-%H:%M:%S", gmtime())
 
 from keras.utils import print_summary
+from keras.models import load_model
 
 from model import unet, BVNet
 from preprossesing import *
@@ -22,7 +23,7 @@ from test import test
 def gpu_config():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.6
+    config.gpu_options.per_process_gpu_memory_fraction = 0.9
     #set_session(tf.Session(config = config))
     sess = tf.Session(config=config)
     sess.run(tf.global_variables_initializer())
@@ -31,7 +32,7 @@ def main(args):
     #gpu_config()
     # Ensure training, testing, and manip are not all turned off
     assert ((args.train or args.test) and args.label ), 'Cannot have train, test, and label all set to 0, Nothing to do.'
-    overwrite = True
+    #overwrite = False
     gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
@@ -40,79 +41,28 @@ def main(args):
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
-    train_files, val_files, test_files = get_data_files( label=label)
-
-
-
-
-    # Load the training, validation, and testing data
-    """try:
-        train_list, val_list, test_list = get_data_files( label=label)
-    except:
-        # Create the training and test splits if not found
-        split_data(args.data_root_dir, num_splits=4)
-        train_list, val_list, test_list = load_data(args.data_root_dir, args.split_num)
-
-    # Get image properties from first image. Assume they are all the same.
-    img_shape = sitk.GetArrayFromImage(sitk.ReadImage(join(args.data_root_dir, 'imgs', train_list[0][0]))).shape
-    net_input_shape = (img_shape[1], img_shape[2], args.slices)
-
-    # Create the model for training/testing/manipulation
-    model_list = create_model(args=args, input_shape=net_input_shape)
-    print_summary(model=model_list[0], positions=[.38, .65, .75, 1.])
-
-    args.output_name = 'split-' + str(args.split_num) + '_batch-' + str(args.batch_size) + \
-                       '_shuff-' + str(args.shuffle_data) + '_aug-' + str(args.aug_data) + \
-                       '_loss-' + str(args.loss) + '_slic-' + str(args.slices) + \
-                       '_sub-' + str(args.subsamp) + '_strid-' + str(args.stride) + \
-                       '_lr-' + str(args.initial_lr) + '_recon-' + str(args.recon_wei)
-    args.time = time
-
-    args.check_dir = join(args.data_root_dir,'saved_models', args.net)
-    try:
-        makedirs(args.check_dir)
-    except:
-        pass
-
-    args.log_dir = join(args.data_root_dir,'logs', args.net)
-    try:
-        makedirs(args.log_dir)
-    except:
-        pass
-
-    args.tf_log_dir = join(args.log_dir, 'tf_logs')
-    try:
-        makedirs(args.tf_log_dir)
-    except:
-        pass
-
-    args.output_dir = join(args.data_root_dir, 'plots', args.net)
-    try:
-        makedirs(args.output_dir)
-    except:
-        pass"""
+    train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
+    if args.modelweights != None:
+        prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
     if args.train:
         #from train import train
         # Run training
-        if  not overwrite:
-            prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-        else:
-            train_data, label_data = get_train_data_slices(train_files, tag=label)
-            print("Done geting training slices...")
-            val_data, val_label = get_slices(val_files, label)
-            print("Done geting validation slices...")
-            if model_name == "BVNet":
-                model = BVNet(input_size =train_data.shape[1:])
+
+        train_data, label_data = get_train_data_slices(train_files, tag=label)
+        print("Done geting training slices...")
+        val_data, val_label = get_slices(val_files, label)
+        print("Done geting validation slices...")
+        if model_name == "BVNet":
+            model = BVNet(args.modelweights, input_size =train_data.shape[1:])
         train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
+        prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
 
     if args.test:
         #from test import test
         # Run testing
-        print("Getting prediction model")
-        prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-        test(test_files, prediction_model)
+        test(test_files, args.label, prediction_model, modelpath)
 
 
 if __name__ == '__main__':
@@ -123,6 +73,8 @@ if __name__ == '__main__':
                         help='/path/to/trained_model.hdf5 from root. Set to "" for none.')
     parser.add_argument('--train', type=int, default=1, choices=[0,1],
                         help='Set to 1 to enable training.')
+    parser.add_argument('--modelweights', type=str, default=None,
+                        help='Set to the path for the  weights of the model check the model folder ex ./model/BVNet_LM.hdf5.')
     parser.add_argument('--test', type=int, default=1, choices=[0,1],
                         help='Set to 1 to enable testing.')
     parser.add_argument('--label',type=str, default='RCA', choices=['RCA', 'LM', 'Aorta', 'both'],

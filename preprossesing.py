@@ -127,9 +127,12 @@ def add_neighbour_slides_training_data(image, label):
 
 
 
-def fetch_training_data_ca_files(label="LM"):
-    path = glob("../st.Olav/*/*/*/")
+def fetch_training_data_ca_files(data_root_dir,label="LM"):
+    #path = glob("../st.Olav/*/*/*/")
     #path = glob("../../st.Olav/*/*/*/")
+    if data_root_dir=="../st.Olav":
+        data_root_dir += "/*/*/*/"
+    path = glob(data_root_dir)
     training_data_files = list()
     for i in range(len(path)):
         try:
@@ -193,8 +196,8 @@ def write_pridiction_to_file(label_array, prediction_array, tag, path="./predict
 
 
 # Assume to have some sitk image (itk_image) and label (itk_label)
-def get_data_files( label="LM"):
-    files = fetch_training_data_ca_files(label)
+def get_data_files(data_root_dir, label="LM"):
+    files = fetch_training_data_ca_files(data_root_dir,label)
     print("files: " + str(len(files)))
     return split_train_val_test(files)
 

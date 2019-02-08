@@ -54,14 +54,14 @@ def threshold_mask(raw_output, threshold):
     return thresholded_mask
 
 
-def test(test_list, model):
+def test(test_list, label, model, modelpath):
     print("Inside test")
     """if args.weights_path == '':
         weights_path = join(args.check_dir, args.output_name + '_model_' + args.time + '.hdf5')
     else:
         weights_path = join(args.data_root_dir, args.weights_path)"""
 
-    output_dir = 'results'
+    output_dir = join('results', modelpath)
     raw_out_dir = join(output_dir, 'raw_output')
     fin_out_dir = join(output_dir, 'final_output')
     fig_out_dir = join(output_dir, 'qual_figs')
@@ -121,7 +121,7 @@ def test(test_list, model):
         sitk_img = sitk.ReadImage(test_list[i][0])
         img_data = sitk.GetArrayFromImage(sitk_img)
         num_slices = img_data.shape[0]
-        pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag="RCA")
+        pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag=label)
         print("gathered pred_sample")
         output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
         """output_array = eval_model.predict_generator(generate_test_batches(args.data_root_dir, [img[:1]],
@@ -148,12 +148,14 @@ def test(test_list, model):
         output_mask.CopyInformation(sitk_img)
 
         print('Saving Output')
-        sitk.WriteImage(output_img, join(raw_out_dir, img[0][-39:-7] + '_raw_output' + img[0][-7:]))
-        sitk.WriteImage(output_mask, join(fin_out_dir, img[0][-39:-7] + '_final_output' + img[0][-7:]))
+        sitk.WriteImage(output_img, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
+        sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
 
-        # Load gt mask
-        #TODO change to get correcr mask name
-        sitk_mask = sitk.ReadImage(img[1])
+    #TODO plot both LM and RCA
+        if(len(img[1]) < 2):
+            sitk_mask = sitk.ReadImage(img[1])
+        else:
+            sitk_mask = sitk.ReadImage(img[1][0])
         gt_data = sitk.GetArrayFromImage(sitk_mask)
 
         # Plot Qual Figure
@@ -184,7 +186,7 @@ def test(test_list, model):
         fig = plt.gcf()
         fig.suptitle(img[0][:-7])
 
-        plt.savefig(join(fig_out_dir, img[0][-39:-7] + '_qual_fig' + '.png'),
+        plt.savefig(join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'),
                     format='png', bbox_inches='tight')
         plt.close('all')
 
