@@ -14,7 +14,7 @@ import numpy as np
 import scipy.ndimage.morphology
 from skimage import measure, filters
 #from metrics import dc, jc, assd
-from preprossesing import get_prediced_image_of_test_files
+from preprossesing import get_prediced_image_of_test_files, write_pridiction_to_file
 
 from keras import backend as K
 K.set_image_data_format('channels_last')
@@ -159,7 +159,7 @@ def test(test_list, label, model, modelpath):
             gt_data = sitk.GetArrayFromImage(sitk_mask_first)
             sitk_mask = sitk.ReadImage(img[1][1])
             gt_data += sitk.GetArrayFromImage(sitk_mask)
-        write_pridiction_to_file(gt_data, output_mask, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
+        write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
         # Plot Qual Figure
         print('Creating Qualitative Figure for Quick Reference')
         f, ax = plt.subplots(1, 3, figsize=(15, 5))

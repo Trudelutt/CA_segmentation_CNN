@@ -55,7 +55,7 @@ def evaluation(model, test_files, label):
 
 
 if __name__ == "__main__":
-    overwrite = True
+    overwrite = False
     #gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
-    train_files, val_files, test_files = get_data_files( label=label)
+    train_files, val_files, test_files = get_data_files("../st.Olav", label=label)
     if  not overwrite:
         prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
     else:
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
     print("Getting prediction model")
     prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-    test(test_files, prediction_model)
+    test(test_files, label, prediction_model, modelpath)
     """for i in range(len(test_files)):
         pred_sample, pred_label = get_prediced_image_of_test_files(test_files, i, tag=label)
         predict_model(prediction_model, pred_sample, pred_label, name=modelpath+"_"+str(i)+"_", label=label, label_path=test_files[i][1])

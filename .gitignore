@@ -106,6 +106,7 @@ venv.bak/
 .keras/
 .config/
 .nv/
+core
 .bash_history
 
 # folders

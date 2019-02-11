@@ -187,7 +187,7 @@ def write_pridiction_to_file(label_array, prediction_array, tag, path="./predict
 
     sitk_image = sitk.GetImageFromArray(label_array)
     sitk_image.CopyInformation(meta_sitk)
-    sitk.WriteImage(sitk_image, path.replace("prediction.nii", "gt.nii"))
+    sitk.WriteImage(sitk_image, path.replace("nii", "gt.nii"))
 
     predsitk_image = sitk.GetImageFromArray(prediction_array)
     predsitk_image.CopyInformation(meta_sitk)
@@ -251,7 +251,11 @@ def write_all_labels(path):
 
 
 if __name__ == "__main__":
-    train_files, val_files, test_files = get_data_files( label="LM")
+    train_files, val_files, test_files = get_data_files("../st.Olav", label="both")
+    print(val_files[0])
+    i, l = get_preprossed_numpy_arrays_from_file(val_files[0][0], val_files[0][1], "both")
+    write_pridiction_to_file(l, l, 'both', path="./predictions/prediction.nii.gz", label_path=val_files[0][0])
+    #val, lab = get_slices(val_files[0], "both")
     #for i in range(len(train_files)):
     """n= len(test_files)
     print(test_files)

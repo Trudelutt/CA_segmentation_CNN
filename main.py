@@ -19,6 +19,7 @@ from keras.backend.tensorflow_backend import set_session
 from metric import *
 from loss_function import dice_coefficient_loss, dice_coefficient
 from test import test
+from train import train_model
 
 def gpu_config():
     config = tf.ConfigProto()
@@ -43,6 +44,7 @@ def main(args):
 
     train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
     if args.modelweights != None:
+        print("Loading model")
         prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
     if args.train:
