@@ -149,15 +149,17 @@ def test(test_list, label, model, modelpath):
 
         print('Saving Output')
         sitk.WriteImage(output_img, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
-        sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
+        #sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
 
     #TODO plot both LM and RCA
         if(len(img[1]) < 2):
             sitk_mask = sitk.ReadImage(img[1])
         else:
-            sitk_mask = sitk.ReadImage(img[1][0])
-        gt_data = sitk.GetArrayFromImage(sitk_mask)
-
+            sitk_mask_first = sitk.ReadImage(img[1][0])
+            gt_data = sitk.GetArrayFromImage(sitk_mask_first)
+            sitk_mask = sitk.ReadImage(img[1][1])
+            gt_data += sitk.GetArrayFromImage(sitk_mask)
+        write_pridiction_to_file(gt_data, output_mask, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
         # Plot Qual Figure
         print('Creating Qualitative Figure for Quick Reference')
         f, ax = plt.subplots(1, 3, figsize=(15, 5))
