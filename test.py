@@ -22,6 +22,31 @@ from keras.utils import print_summary
 
 #from load_3D_data import generate_test_batches
 
+def refine_binary(im_fp, k=None):
+    if k is None:
+        k = np.ones((3, 3, 3))
+    print('Loading image %s' % os.path.split(im_fp)[-1])
+    im = nib.load(im_fp).get_data()
+    print('Creating binary closing of image...')
+    im_closed = (im > 0).astype(np.float32)
+    im_closed = nd.morphology.binary_closing(im_closed, structure=k).astype(np.float32)
+    print('Running connected components on closed image...')
+    cc_closed = measure.label(im_closed, background=0)
+    del im_closed
+    lbls, counts = np.unique(cc_closed, return_counts=True)
+    branches = np.argsort(counts)[-3:-1]
+    print('Pruning closed image...')
+    im_closed_ref = (cc_closed == branches[0]).astype(np.float32)
+    im_closed_ref[np.where(cc_closed==branches[1])] = 1.0
+    print('Running CC on non-binary image...')
+    cc = measure.label(im, background=0)
+    lbls = np.unique(cc[np.where(im_closed_ref>0)])
+    lbls = np.delete(lbls, np.where(lbls==0)) # Remove background label
+    del im_closed_ref
+    print('Creating final refined segmentation...')
+    im_refined = np.isin(cc, lbls).astype(np.float32)
+    return im_refined
+
 
 def threshold_mask(raw_output, threshold):
     if threshold == 0:
@@ -53,6 +78,90 @@ def threshold_mask(raw_output, threshold):
 
     return thresholded_mask
 
+def make_result_csvfile(compute_dice, output_dir, test_list):
+    # Set up placeholders
+    outfile = ''
+    if compute_dice:
+        dice_arr = np.zeros((len(test_list)))
+        outfile += 'dice_'
+    """if args.compute_jaccard:
+        jacc_arr = np.zeros((len(test_list)))
+        outfile += 'jacc_'
+    if args.compute_assd:
+        assd_arr = np.zeros((len(test_list)))
+        outfile += 'assd_'"""
+
+    # Testing the network
+    print('Testing... This will take some time...')
+
+    with open(join(output_dir, outfile + 'scores.csv'), 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        print("open writer")
+        row = ['Scan Name']
+        if compute_dice:
+            row.append('Dice Coefficient')
+        """if args.compute_jaccard:
+            row.append('Jaccard Index')
+        if args.compute_assd:
+            row.append('Average Symmetric Surface Distance')"""
+
+        writer.writerow(row)
+    return writer
+
+def add_result_to_csvfile(img_name, prediction, gt_data, writer):
+    row = img_name
+    if args.compute_dice:
+        print('Computing Dice')
+        dice_arr[i] = dc(pred, gt_data)
+        print('\tDice: {}'.format(dice_arr[i]))
+        row.append(dice_arr[i])
+    """if args.compute_jaccard:
+        print('Computing Jaccard')
+        jacc_arr[i] = jc(output_bin, gt_data)
+        print('\tJaccard: {}'.format(jacc_arr[i]))
+        row.append(jacc_arr[i])
+    if args.compute_assd:
+        print('Computing ASSD')
+        assd_arr[i] = assd(output_bin, gt_data, voxelspacing=sitk_img.GetSpacing(), connectivity=1)
+        print('\tASSD: {}'.format(assd_arr[i]))
+        row.append(assd_arr[i])"""
+
+    writer.writerow(row)
+
+
+def plot_gt_predtion_on_slices(img_data, output_bin, gt_data, path):
+    print('Creating Qualitative Figure for Quick Reference')
+    f, ax = plt.subplots(1, 3, figsize=(15, 5))
+
+    ax[0].imshow(img_data[img_data.shape[0] // 3, :, :], alpha=1, cmap='gray')
+    ax[0].imshow(output_bin[img_data.shape[0] // 3, :, :], alpha=0.5, cmap='Blues')
+    ax[0].imshow(gt_data[img_data.shape[0] // 3, :, :], alpha=0.2, cmap='Reds')
+    ax[0].set_title('Slice {}/{}'.format(img_data.shape[0] // 3, img_data.shape[0]))
+    ax[0].axis('off')
+
+    ax[1].imshow(img_data[img_data.shape[0] // 2, :, :], alpha=1, cmap='gray')
+    ax[1].imshow(output_bin[img_data.shape[0] // 2, :, :], alpha=0.5, cmap='Blues')
+    ax[1].imshow(gt_data[img_data.shape[0] // 2, :, :], alpha=0.2, cmap='Reds')
+    ax[1].set_title('Slice {}/{}'.format(img_data.shape[0] // 2, img_data.shape[0]))
+    ax[1].axis('off')
+
+    ax[2].imshow(img_data[img_data.shape[0] // 2 + img_data.shape[0] // 4, :, :], alpha=1, cmap='gray')
+    ax[2].imshow(output_bin[img_data.shape[0] // 2 + img_data.shape[0] // 4, :, :], alpha=0.5,
+                 cmap='Blues')
+    ax[2].imshow(gt_data[img_data.shape[0] // 2 + img_data.shape[0] // 4, :, :], alpha=0.2,
+                 cmap='Reds')
+    ax[2].set_title(
+        'Slice {}/{}'.format(img_data.shape[0] // 2 + img_data.shape[0] // 4, img_data.shape[0]))
+    ax[2].axis('off')
+
+    fig = plt.gcf()
+    fig.suptitle(img[0][:-7])
+
+    plt.savefig(path, format='png', bbox_inches='tight')
+    plt.close('all')
+
+
+
 
 def test(test_list, label, model, modelpath):
     print("Inside test")
@@ -78,65 +187,15 @@ def test(test_list, label, model, modelpath):
     except:
         pass
 
-    """if len(model_list) > 1:
-        eval_model = model_list[1]
-    else:
-        eval_model = model_list[0]
-    try:
-        eval_model.load_weights(weights_path)
-    except:
-        print('Unable to find weights path. Testing with random weights.')
-    print_summary(model=eval_model, positions=[.38, .65, .75, 1.])"""
-
-    # Set up placeholders
-    outfile = ''
-    """if args.compute_dice:
-        dice_arr = np.zeros((len(test_list)))
-        outfile += 'dice_'
-    if args.compute_jaccard:
-        jacc_arr = np.zeros((len(test_list)))
-        outfile += 'jacc_'
-    if args.compute_assd:
-        assd_arr = np.zeros((len(test_list)))
-        outfile += 'assd_'
-
-    # Testing the network
-    print('Testing... This will take some time...')
-
-    with open(join(output_dir, args.save_prefix + outfile + 'scores.csv'), 'wb') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-
-        row = ['Scan Name']
-        if args.compute_dice:
-            row.append('Dice Coefficient')
-        if args.compute_jaccard:
-            row.append('Jaccard Index')
-        if args.compute_assd:
-            row.append('Average Symmetric Surface Distance')
-
-        writer.writerow(row)"""
 
     for i, img in enumerate(tqdm(test_list)):
-        #TODO this must change
         sitk_img = sitk.ReadImage(test_list[i][0])
         img_data = sitk.GetArrayFromImage(sitk_img)
         num_slices = img_data.shape[0]
         pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag=label)
         print("gathered pred_sample")
         output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
-        """output_array = eval_model.predict_generator(generate_test_batches(args.data_root_dir, [img[:1]],
-                                                                          net_input_shape,
-                                                                          batchSize=args.batch_size,
-                                                                          numSlices=args.slices,
-                                                                          subSampAmt=0,
-                                                                          stride=1),
-                                                    steps=num_slices, max_queue_size=1, workers=1,
-                                                    use_multiprocessing=False, verbose=1)"""
 
-        """if args.net.find('caps') != -1:
-            output = output_array[0][:,:,:,0]
-            #recon = output_array[1][:,:,:,0]
-        else:"""
         output = output_array[:,:,:,0]
 
         output_img = sitk.GetImageFromArray(output)
@@ -161,35 +220,12 @@ def test(test_list, label, model, modelpath):
             gt_data += sitk.GetArrayFromImage(sitk_mask)
         write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
         # Plot Qual Figure
-        print('Creating Qualitative Figure for Quick Reference')
-        f, ax = plt.subplots(1, 3, figsize=(15, 5))
-
-        ax[0].imshow(img_data[img_data.shape[0] // 3, :, :], alpha=1, cmap='gray')
-        ax[0].imshow(output_bin[img_data.shape[0] // 3, :, :], alpha=0.5, cmap='Blues')
-        ax[0].imshow(gt_data[img_data.shape[0] // 3, :, :], alpha=0.2, cmap='Reds')
-        ax[0].set_title('Slice {}/{}'.format(img_data.shape[0] // 3, img_data.shape[0]))
-        ax[0].axis('off')
-
-        ax[1].imshow(img_data[img_data.shape[0] // 2, :, :], alpha=1, cmap='gray')
-        ax[1].imshow(output_bin[img_data.shape[0] // 2, :, :], alpha=0.5, cmap='Blues')
-        ax[1].imshow(gt_data[img_data.shape[0] // 2, :, :], alpha=0.2, cmap='Reds')
-        ax[1].set_title('Slice {}/{}'.format(img_data.shape[0] // 2, img_data.shape[0]))
-        ax[1].axis('off')
-
-        ax[2].imshow(img_data[img_data.shape[0] // 2 + img_data.shape[0] // 4, :, :], alpha=1, cmap='gray')
-        ax[2].imshow(output_bin[img_data.shape[0] // 2 + img_data.shape[0] // 4, :, :], alpha=0.5,
-                     cmap='Blues')
-        ax[2].imshow(gt_data[img_data.shape[0] // 2 + img_data.shape[0] // 4, :, :], alpha=0.2,
-                     cmap='Reds')
-        ax[2].set_title(
-            'Slice {}/{}'.format(img_data.shape[0] // 2 + img_data.shape[0] // 4, img_data.shape[0]))
-        ax[2].axis('off')
-
-        fig = plt.gcf()
-        fig.suptitle(img[0][:-7])
-
-        plt.savefig(join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'),
-                    format='png', bbox_inches='tight')
-        plt.close('all')
+        plot_gt_predtion_on_slices(img_data, output_bin, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
+        add_result_to_csvfile([img[0][:-7]], output_bin, gt_data, writer)
 
     print('Done.')
+
+
+
+if __name__=="__main__":
+    make_result_csvfile(True, join('results', ""), ["hei", "yo"])
