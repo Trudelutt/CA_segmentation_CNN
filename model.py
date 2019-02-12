@@ -11,7 +11,7 @@ from metric import *
 
 
 #TODO make BVNet static like unet
-def BVNet(pretrained_weights = None,input_size = (256,256, 5)):
+def BVNet(pretrained_weights = None,input_size = (256,256, 5), loss=dice_coefficient_loss):
     # Build U-Net model
     inputs = Input((input_size))
    # s = Lambda(lambda x: x / 255) (inputs)
@@ -114,7 +114,7 @@ def BVNet(pretrained_weights = None,input_size = (256,256, 5)):
     outputs = Conv2D(1, (1, 1), activation='sigmoid') (c9)
 
     model = Model(inputs=[inputs], outputs=[outputs])
-    model.compile(optimizer='adam', loss=dice_coefficient_loss,loss_weights=pretrained_weights, metrics=[binary_accuracy, dice_coefficient, recall, precision])
+    model.compile(optimizer='adam', loss=loss,loss_weights=pretrained_weights, metrics=[binary_accuracy, dice_coefficient, recall, precision])
     model.summary()
     return model
 
@@ -169,7 +169,7 @@ def unet(pretrained_weights=None, input_size=(256, 256, 5), number_of_classes=1)
 
     model = Model(inputs=inputs, outputs=segmap)
 
-    model.compile(optimizer='adam', loss=dice_coefficient_loss, metrics=[binary_accuracy, dice_coefficient, recall, precision])
+    model.compile(optimizer='adam', loss=loss, metrics=[binary_accuracy, dice_coefficient, recall, precision])
     model.summary()
     return model
 

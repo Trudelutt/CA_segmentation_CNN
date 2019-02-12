@@ -5,6 +5,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.ioff()
 
+import os
+from keras import backend as K
 from os.path import join
 from os import makedirs
 import csv
@@ -15,26 +17,33 @@ import scipy.ndimage.morphology
 from skimage import measure, filters
 #from metrics import dc, jc, assd
 from preprossesing import get_prediced_image_of_test_files, write_pridiction_to_file
+from loss_function import dice_coefficient
 
 from keras import backend as K
 K.set_image_data_format('channels_last')
 from keras.utils import print_summary
+import scipy.ndimage as nd
+from skimage import measure
 
 #from load_3D_data import generate_test_batches
 
-def refine_binary(im_fp, k=None):
+def refine_binary(im, k=None):
     if k is None:
-        k = np.ones((3, 3, 3))
-    print('Loading image %s' % os.path.split(im_fp)[-1])
-    im = nib.load(im_fp).get_data()
+        k = np.ones((1, 1, 1))
+    #print('Loading image %s' % os.path.split(im_fp)[-1])
+    #im = nib.load(im_fp).get_data()
+    print(np.unique(im))
     print('Creating binary closing of image...')
     im_closed = (im > 0).astype(np.float32)
-    im_closed = nd.morphology.binary_closing(im_closed, structure=k).astype(np.float32)
+    #im_closed = nd.morphology.grey_closing(im_closed, structure=k).astype(np.float32)
     print('Running connected components on closed image...')
     cc_closed = measure.label(im_closed, background=0)
     del im_closed
     lbls, counts = np.unique(cc_closed, return_counts=True)
+    print(lbls, counts)
     branches = np.argsort(counts)[-3:-1]
+    print(np.argsort(counts))
+    print(branches)
     print('Pruning closed image...')
     im_closed_ref = (cc_closed == branches[0]).astype(np.float32)
     im_closed_ref[np.where(cc_closed==branches[1])] = 1.0
@@ -45,7 +54,31 @@ def refine_binary(im_fp, k=None):
     del im_closed_ref
     print('Creating final refined segmentation...')
     im_refined = np.isin(cc, lbls).astype(np.float32)
+    if np.array_equal(im, im_refined):
+        print("No refinement")
     return im_refined
+
+def simple_refine(im):
+    # Label connected components
+    cc, num_cc = nd.label(im)
+    # Find counts of unique elements in the cc volume
+    unique, counts = np.unique(cc, return_counts=True)
+    # Sort counts (ascending order), return indices and reverse it
+    print(counts)
+    counts_sorted = np.argsort(counts)
+    print(counts_sorted)
+
+    # Largest count is always background
+    #bg_lbl = counts_sorted[-1]
+    # Assume that the two largest connected components are the coronary branches
+    b1_lbl = counts_sorted[1]
+    #b2_lbl = counts_sorted[-3]
+
+    refined_im = np.zeros(im.shape, dtype=np.float32)
+    refined_im[np.where(cc==b1_lbl)] = 1.0
+    refined_im[np.where(cc==b2_lbl)] = 1.0
+
+    return refined_im
 
 
 def threshold_mask(raw_output, threshold):
@@ -59,13 +92,16 @@ def threshold_mask(raw_output, threshold):
 
     raw_output[raw_output > threshold] = 1
     raw_output[raw_output < 1] = 0
+    im_closed = nd.morphology.grey_closing(raw_output, structure=np.ones((3, 3, 3))).astype(np.float32)
 
     all_labels = measure.label(raw_output)
-    props = measure.regionprops(all_labels)
+    props = measure.regionprops(all_labels, coordinates='rc')
     props.sort(key=lambda x: x.area, reverse=True)
     thresholded_mask = np.zeros(raw_output.shape)
-
-    if len(props) >= 2:
+    for prop in props:
+        if prop.area > 500:
+            thresholded_mask[all_labels == prop.label] = 1
+    """if len(props) >= 2:
         if props[0].area / props[1].area > 5:  # if the largest is way larger than the second largest
             thresholded_mask[all_labels == props[0].label] = 1  # only turn on the largest component
         else:
@@ -76,6 +112,7 @@ def threshold_mask(raw_output, threshold):
 
     #thresholded_mask = scipy.ndimage.morphology.binary_fill_holes(thresholded_mask).astype(np.uint8)
 
+    return thresholded_mask"""
     return thresholded_mask
 
 def make_result_csvfile(compute_dice, output_dir, test_list):
@@ -83,7 +120,7 @@ def make_result_csvfile(compute_dice, output_dir, test_list):
     outfile = ''
     if compute_dice:
         dice_arr = np.zeros((len(test_list)))
-        outfile += 'dice_'
+        #outfile += 'dice_'
     """if args.compute_jaccard:
         jacc_arr = np.zeros((len(test_list)))
         outfile += 'jacc_'
@@ -106,27 +143,29 @@ def make_result_csvfile(compute_dice, output_dir, test_list):
             row.append('Average Symmetric Surface Distance')"""
 
         writer.writerow(row)
-    return writer
 
-def add_result_to_csvfile(img_name, prediction, gt_data, writer):
-    row = img_name
-    if args.compute_dice:
-        print('Computing Dice')
-        dice_arr[i] = dc(pred, gt_data)
-        print('\tDice: {}'.format(dice_arr[i]))
-        row.append(dice_arr[i])
-    """if args.compute_jaccard:
-        print('Computing Jaccard')
-        jacc_arr[i] = jc(output_bin, gt_data)
-        print('\tJaccard: {}'.format(jacc_arr[i]))
-        row.append(jacc_arr[i])
-    if args.compute_assd:
-        print('Computing ASSD')
-        assd_arr[i] = assd(output_bin, gt_data, voxelspacing=sitk_img.GetSpacing(), connectivity=1)
-        print('\tASSD: {}'.format(assd_arr[i]))
-        row.append(assd_arr[i])"""
+def add_result_to_csvfile(img_name, prediction, gt_data, output_dir, compute_dice):
+    with open(join(output_dir,  'scores.csv'), 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        row = img_name
+        if compute_dice:
+            print('Computing Dice')
 
-    writer.writerow(row)
+            dice_arr = K.eval(dice_coefficient(prediction.astype(np.float32), gt_data.astype(np.float32)))
+            print('\tDice: {}'.format(dice_arr))
+            row.append(dice_arr)
+        """if args.compute_jaccard:
+            print('Computing Jaccard')
+            jacc_arr[i] = jc(output_bin, gt_data)
+            print('\tJaccard: {}'.format(jacc_arr[i]))
+            row.append(jacc_arr[i])
+        if args.compute_assd:
+            print('Computing ASSD')
+            assd_arr[i] = assd(output_bin, gt_data, voxelspacing=sitk_img.GetSpacing(), connectivity=1)
+            print('\tASSD: {}'.format(assd_arr[i]))
+            row.append(assd_arr[i])"""
+
+        writer.writerow(row)
 
 
 def plot_gt_predtion_on_slices(img_data, output_bin, gt_data, path):
@@ -155,7 +194,7 @@ def plot_gt_predtion_on_slices(img_data, output_bin, gt_data, path):
     ax[2].axis('off')
 
     fig = plt.gcf()
-    fig.suptitle(img[0][:-7])
+    fig.suptitle(path)
 
     plt.savefig(path, format='png', bbox_inches='tight')
     plt.close('all')
@@ -187,6 +226,7 @@ def test(test_list, label, model, modelpath):
     except:
         pass
 
+    writer = make_result_csvfile(True, join('results', ""), test_list)
 
     for i, img in enumerate(tqdm(test_list)):
         sitk_img = sitk.ReadImage(test_list[i][0])
@@ -201,6 +241,7 @@ def test(test_list, label, model, modelpath):
         output_img = sitk.GetImageFromArray(output)
         print('Segmenting Output')
         output_bin = threshold_mask(output, 0.0)
+        #output_bin = simple_refine(output)
         output_mask = sitk.GetImageFromArray(output_bin)
 
         output_img.CopyInformation(sitk_img)
@@ -209,23 +250,22 @@ def test(test_list, label, model, modelpath):
         print('Saving Output')
         sitk.WriteImage(output_img, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
         #sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
-
     #TODO plot both LM and RCA
         if(len(img[1]) < 2):
             sitk_mask = sitk.ReadImage(img[1])
         else:
             sitk_mask_first = sitk.ReadImage(img[1][0])
-            gt_data = sitk.GetArrayFromImage(sitk_mask_first)
+            gt_data = sitk.GetArrayFromImage(sitk_mask_first).astype(np.float32)
             sitk_mask = sitk.ReadImage(img[1][1])
-            gt_data += sitk.GetArrayFromImage(sitk_mask)
+            gt_data += sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
         write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
+        add_result_to_csvfile([img[0][:-7]], output_bin, gt_data, output_dir, True)
         # Plot Qual Figure
         plot_gt_predtion_on_slices(img_data, output_bin, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
-        add_result_to_csvfile([img[0][:-7]], output_bin, gt_data, writer)
 
     print('Done.')
 
 
 
 if __name__=="__main__":
-    make_result_csvfile(True, join('results', ""), ["hei", "yo"])
+    writer = make_result_csvfile(True, join('results', ""), ["hei", "yo"])

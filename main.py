@@ -29,6 +29,11 @@ def gpu_config():
     sess = tf.Session(config=config)
     sess.run(tf.global_variables_initializer())
 
+def get_loss(loss):
+    print(loss)
+    if loss == 'dice':
+        return dice_coefficient_loss
+
 def main(args):
     #gpu_config()
     # Ensure training, testing, and manip are not all turned off
@@ -38,14 +43,15 @@ def main(args):
     model_name = "BVNet"
     # label must be noe of the coronary arteries
     label = "both"
-    modelpath = model_name+ "_"+ label
+    modelpath = model_name+ "_"+ args.label + "_"+ args.loss
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
     train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
     if args.modelweights != None:
         print("Loading model")
-        prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
+        #prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
+        prediction_model= load_model(args.modelweights, custom_objects=custom_objects)
 
     if args.train:
         #from train import train
@@ -56,7 +62,8 @@ def main(args):
         val_data, val_label = get_slices(val_files, label)
         print("Done geting validation slices...")
         if model_name == "BVNet":
-            model = BVNet(args.modelweights, input_size =train_data.shape[1:])
+            print(args.loss)
+            model = BVNet(args.modelweights, input_size =train_data.shape[1:], loss=dice_coefficient_loss)
         train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
         prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
@@ -82,7 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--label',type=str, default='RCA', choices=['RCA', 'LM', 'Aorta', 'both'],
                         help='Which loss to use. "bce" and "w_bce": unweighted and weighted binary cross entropy'
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
-    parser.add_argument('--loss', type=str.lower, default='w_bce', choices=['bce', 'w_bce', 'dice', 'mar', 'w_mar'],
+    parser.add_argument('--loss', type=str.lower, default='dice', choices=['bce', 'w_bce', 'dice', 'mar', 'w_mar'],
                         help='Which loss to use. "bce" and "w_bce": unweighted and weighted binary cross entropy'
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
     parser.add_argument('--batch_size', type=int, default=1,
