@@ -21,7 +21,7 @@ from loss_function import dice_coefficient
 
 from keras import backend as K
 K.set_image_data_format('channels_last')
-from keras.utils import print_summary
+#from keras.utils import print_summary
 import scipy.ndimage as nd
 from skimage import measure
 
@@ -249,19 +249,17 @@ def test(test_list, label, model, modelpath):
 
         print('Saving Output')
         sitk.WriteImage(output_img, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
-        #sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
-    #TODO plot both LM and RCA
-        if(len(img[1]) < 2):
-            sitk_mask = sitk.ReadImage(img[1])
-        else:
-            sitk_mask_first = sitk.ReadImage(img[1][0])
-            gt_data = sitk.GetArrayFromImage(sitk_mask_first).astype(np.float32)
-            sitk_mask = sitk.ReadImage(img[1][1])
-            gt_data += sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
-        write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
-        add_result_to_csvfile([img[0][:-7]], output_bin, gt_data, output_dir, True)
+        sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
+        sitk_mask = sitk.ReadImage(img[1])
+        #else:
+            #sitk_mask_first = sitk.ReadImage(img[1][0])
+        gt_data = sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
+            #sitk_mask = sitk.ReadImage(img[1][1])
+            #gt_data += sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
+        #write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
+        add_result_to_csvfile([img[0][:-7]], output_array, gt_data, output_dir, True)
         # Plot Qual Figure
-        plot_gt_predtion_on_slices(img_data, output_bin, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
+        plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
 
     print('Done.')
 

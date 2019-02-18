@@ -114,3 +114,4 @@ models/
 history/
 predictions/
 results/
+*split_lists

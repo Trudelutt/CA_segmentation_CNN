@@ -9,7 +9,7 @@ import tensorflow as tf
 from time import gmtime, strftime
 time = strftime("%Y-%m-%d-%H:%M:%S", gmtime())
 
-from keras.utils import print_summary
+#from keras.utils import print_summary
 from keras.models import load_model
 
 from model import unet, BVNet
@@ -20,6 +20,7 @@ from metric import *
 from loss_function import dice_coefficient_loss, dice_coefficient
 from test import test
 from train import train_model
+#from augmentation import augmentImages
 
 def gpu_config():
     config = tf.ConfigProto()
@@ -42,12 +43,16 @@ def main(args):
     gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
-    label = "both"
     modelpath = model_name+ "_"+ args.label + "_"+ args.loss
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
-    train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
+    #train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
+    try:
+        train_files, val_files, test_files = get_train_val_test(args.label)
+    except:
+        create_split(args.data_root_dir, args.label)
+        train_files, val_files, test_files = get_train_val_test(args.label)
     if args.modelweights != None:
         print("Loading model")
         #prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
@@ -58,6 +63,8 @@ def main(args):
         # Run training
 
         train_data, label_data = get_train_data_slices(train_files, tag=label)
+        #augmentImages(train_data, label_data)
+
         print("Done geting training slices...")
         val_data, val_label = get_slices(val_files, label)
         print("Done geting validation slices...")
@@ -71,6 +78,8 @@ def main(args):
     if args.test:
         #from test import test
         # Run testing
+        #prediction_model = load_model('./models/BVNet_both.hdf5', custom_objects=custom_objects)
+
         test(test_files, args.label, prediction_model, modelpath)
 
 
