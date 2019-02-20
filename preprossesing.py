@@ -18,20 +18,7 @@ import nibabel as nib
 
 
 
-def split_train_val_test(samples):
-    n_samples = len(samples)
-    sep_train = int(n_samples*0.8)
-    sep_val = int(n_samples*0.9)
-
-    train_files = samples[:sep_train]
-    val_files = samples[sep_train:sep_val]
-
-    test_files = samples[sep_val:]
-    print(len(train_files), len(val_files), len(test_files))
-    return train_files, val_files, test_files
-
-
-def preprosses_images(image, label, tag):
+def preprosses_images(image, label):
     image -= np.min(image)
     image = image/ np.max(image)
     image -= np.mean(image)
@@ -39,12 +26,12 @@ def preprosses_images(image, label, tag):
     return image, label
 
 
-def get_preprossed_numpy_arrays_from_file(image_path, label_path, tag):
+def get_preprossed_numpy_arrays_from_file(image_path, label_path):
     sitk_image  = sitk.ReadImage(image_path, sitk.sitkFloat32)
     numpy_image = sitk.GetArrayFromImage(sitk_image)
     sitk_label  = sitk.ReadImage(label_path )
     numpy_label = sitk.GetArrayFromImage(sitk_label)
-    return preprosses_images(numpy_image, numpy_label, tag)
+    return preprosses_images(numpy_image, numpy_label)
 
 
 def remove_slices_with_just_background(image, label):
@@ -130,6 +117,7 @@ def fetch_training_data_ca_files(data_root_dir,label="LM"):
     if data_root_dir=="../st.Olav":
         data_root_dir += "/*/*/*/"
     path = glob(data_root_dir)
+    training_data_files= list()
     for i in range(len(path)):
         try:
             data_path = glob(path[i] + "*CCTA.nii.gz")[0]
@@ -189,6 +177,14 @@ def write_pridiction_to_file(label_array, prediction_array, tag, path="./predict
     sitk.WriteImage(predsitk_image, path)
     print("Writing prediction is done...")
 
+def write_to_file(numpy_array, meta_path, path):
+    print(path)
+    meta_sitk = sitk.ReadImage(meta_path)
+    sitk_image = sitk.GetImageFromArray(numpy_array[:meta_sitk.GetDepth()])
+    sitk_image.CopyInformation(meta_sitk)
+    sitk.WriteImage(sitk_image, path)
+
+
 
 # Assume to have some sitk image (itk_image) and label (itk_label)
 def get_data_files(data_root_dir, label="LM"):
@@ -203,7 +199,7 @@ def get_train_data_slices(train_files, tag = "LM"):
     count_slices = 0
     for element in train_files:
         print(element[0])
-        numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1], tag)
+        numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1])
         i, l = add_neighbour_slides_training_data(numpy_image, numpy_label)
         resized_image, resized_label = remove_slices_with_just_background(i, l)
 
@@ -224,7 +220,7 @@ def get_slices(files, tag="LM"):
     label_data_list = []
     count_slices = 0
     for element in files:
-        numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1],tag)
+        numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1])
         i, l = add_neighbour_slides_training_data(numpy_image, numpy_label)
         count_slices += i.shape[0]
         input_data_list.append(i)
@@ -292,33 +288,81 @@ def make_both_label():
         except:
             print("Could not make both file" + str(glob(path[i])))
 
+def get_patches(image_numpy, label_numpy, remove_only_background_patches=False):
+    image_patch_list = []
+    label_patch_list = []
+    orginal_shape = image_numpy.shape
+    #print(orginal_shape)
+    image_numpy_padded = np.zeros((orginal_shape[0] + (orginal_shape[0] % 64), orginal_shape[1] + (orginal_shape[1] % 64), orginal_shape[2] + (orginal_shape[2] % 64)))
+    image_numpy_padded[0:image_numpy.shape[0], 0:image_numpy.shape[1], 0:image_numpy.shape[2]] = image_numpy
+    #print(image_numpy_padded.shape)
+    mask_padded = np.zeros(image_numpy_padded.shape)
+    mask_padded[0:image_numpy.shape[0], 0:image_numpy.shape[1], 0:image_numpy.shape[2]] = label_numpy
+    for z in range(64, image_numpy_padded.shape[0],64):
+        for y in range(64, image_numpy_padded.shape[1],64):
+            for x in range(64,image_numpy_padded.shape[2],64):
+                mask_patch = mask_padded[z-64:z, y-64:y, x-64:x]
+                if remove_only_background_patches:
+                    if np.all(mask_patch == 0):
+                        continue
+                image_patch_list.append(image_numpy_padded[z-64:z, y-64:y, x-64:x])
+                label_patch_list.append(mask_patch)
+    return image_patch_list, label_patch_list, mask_padded.shape
+
+
+def get_training_patches(train_files, label = "LM", remove_only_background_patches=False, return_shape=False):
+    training_patches = []
+    mask_patches = []
+    count = 1
+    with tqdm(total=len(train_files), desc='Adds patches  from image ' + str(count) +"/" + str(len(train_files))) as t:
+        for element in train_files:
+            #print(element[0])
+            numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1])
+            img_patch, mask_patch, padded_shape  = get_patches(numpy_image, numpy_label, remove_only_background_patches)
+            training_patches.extend(img_patch)
+            mask_patches.extend(mask_patch)
+            count += 1
+            t.update()
+    training_patch_numpy = np.array(training_patches)
+    new_shape = (training_patch_numpy.shape[0],training_patch_numpy.shape[1],training_patch_numpy.shape[2],training_patch_numpy.shape[3], 1)
+    new_shape_training_patch = training_patch_numpy.reshape(new_shape)
+    if return_shape:
+        return new_shape_training_patch, np.array(mask_patches).reshape(new_shape), padded_shape
+    else:
+        return new_shape_training_patch, np.array(mask_patches).reshape(new_shape)
+
+def get_prediced_patches_of_test_file(test_files, i, label):
+    element = test_files[i]
+    print("Prediction on " + element[0])
+    return get_training_patches(test_files[i:i+1], label, return_shape=True)
+
+def from_patches_to_numpy(patches, shape):
+    print(shape)
+    reshape_patches = patches[...,0]
+    print(reshape_patches.shape)
+    image_numpy = np.zeros(shape)
+    i = 0
+    for z in range(64, shape[0],64):
+        for y in range(64, shape[1],64):
+            for x in range(64, shape[2],64):
+                image_numpy[z-64:z, y-64:y, x-64:x] = reshape_patches[i]
+                i += 1
+    if(i != patches.shape[0]):
+        print("something is wrong with the patches to numpy converting")
+        print(i, patches.shape[0])
+    return image_numpy
+
 
 
 
 
 if __name__ == "__main__":
     #make_both_label()
-    create_split("../st.Olav", "both")
+    #create_split("../st.Olav", "both")
     train, val, test = get_train_val_test("both")
-    #print(train.shape)
-    print(train[...,0])
-    print("####")
-    print(train[...,1])
-    print("###")
-    print(train[0])
-
-    """create_split()
-    data = np.genfromtxt("split.csv",delimiter=',')
-    print(data)
-    print(data.shape)"""
-    #train_files, val_files, test_files = get_data_files("../st.Olav", label="both")
-    #print(val_files[0])
-    #i, l = get_preprossed_numpy_arrays_from_file(val_files[0][0], val_files[0][1], "both")
-    #write_pridiction_to_file(l, l, 'both', path="./predictions/prediction.nii.gz", label_path=val_files[0][0])
-    #val, lab = get_slices(val_files[0], "both")
-    #for i in range(len(train_files)):
-    """n= len(test_files)
-    print(test_files)
-    test_x, test_y = get_prediced_image_of_test_files(test_files, 0, tag="LM")
-    train_data, label_data = get_train_data_slices(train_files[:1], tag ="LM")
-    write_pridiction_to_file(test_y, label_data, tag="HV", path="./predictions/prediction.nii.gz", label_path=test_files[0][1])"""
+    print(test[0])
+    x, y, orgshape = get_prediced_patches_of_test_file(test, 0, "both")
+    label = from_patches_to_numpy(y, orgshape)
+    img, org_label = get_preprossed_numpy_arrays_from_file(test[0][0], test[0][1])
+    print(np.unique(np.equal(org_label, label[:org_label.shape[0]])))
+    write_to_file(label, meta_path=test[0][0], path="./results/14.feb/" +str(basename(test[0][1])))

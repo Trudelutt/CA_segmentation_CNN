@@ -16,7 +16,7 @@ import numpy as np
 import scipy.ndimage.morphology
 from skimage import measure, filters
 #from metrics import dc, jc, assd
-from preprossesing import get_prediced_image_of_test_files, write_pridiction_to_file
+from preprossesing import get_prediced_image_of_test_files, write_pridiction_to_file, get_prediced_patches_of_test_file, from_patches_to_numpy
 from loss_function import dice_coefficient
 
 from keras import backend as K
@@ -209,7 +209,7 @@ def test(test_list, label, model, modelpath):
     else:
         weights_path = join(args.data_root_dir, args.weights_path)"""
 
-    output_dir = join('results', modelpath)
+    output_dir = join('results', basename(modelpath.replace("hdf5", "")))
     raw_out_dir = join(output_dir, 'raw_output')
     fin_out_dir = join(output_dir, 'final_output')
     fig_out_dir = join(output_dir, 'qual_figs')
@@ -232,23 +232,31 @@ def test(test_list, label, model, modelpath):
         sitk_img = sitk.ReadImage(test_list[i][0])
         img_data = sitk.GetArrayFromImage(sitk_img)
         num_slices = img_data.shape[0]
-        pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag=label)
-        print("gathered pred_sample")
-        output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
+        if "3D" in modelpath:
+            print("INSIDE 3D test")
+            pred_sample, pred_label, orgshape = get_prediced_patches_of_test_file(test_list, 0, "both")
+            output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
+            output = from_patches_to_numpy(output_array, orgshape)
+            output= output[:num_slices]
 
-        output = output_array[:,:,:,0]
+        else:
+            pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag=label)
+            print("gathered pred_sample")
+            output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
 
-        output_img = sitk.GetImageFromArray(output)
+            output = output_array[:,:,:,0]
+
+        output_rawimg = sitk.GetImageFromArray(output)
         print('Segmenting Output')
         output_bin = threshold_mask(output, 0.0)
         #output_bin = simple_refine(output)
         output_mask = sitk.GetImageFromArray(output_bin)
 
-        output_img.CopyInformation(sitk_img)
+        output_rawimg.CopyInformation(sitk_img)
         output_mask.CopyInformation(sitk_img)
 
         print('Saving Output')
-        sitk.WriteImage(output_img, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
+        sitk.WriteImage(output_rawimg, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
         sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
         sitk_mask = sitk.ReadImage(img[1])
         #else:
@@ -259,7 +267,7 @@ def test(test_list, label, model, modelpath):
         #write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
         add_result_to_csvfile([img[0][:-7]], output_array, gt_data, output_dir, True)
         # Plot Qual Figure
-        plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
+        #plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
 
     print('Done.')
 

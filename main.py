@@ -12,7 +12,7 @@ time = strftime("%Y-%m-%d-%H:%M:%S", gmtime())
 #from keras.utils import print_summary
 from keras.models import load_model
 
-from model import unet, BVNet
+from model import unet, BVNet, BVNet3D
 from preprossesing import *
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
@@ -31,19 +31,40 @@ def gpu_config():
     sess.run(tf.global_variables_initializer())
 
 def get_loss(loss):
-    print(loss)
     if loss == 'dice':
         return dice_coefficient_loss
 
+def get_model(args, train_files, val_files):
+    if args.modelweights != None:
+        custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
+        'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
+        model = prediction_model = load_model(args.modelweights, custom_objects=custom_objects)
+    else:
+        if(args.model=="BVNet3D"):
+            train_data, label_data = get_training_patches(train_files, args.label, remove_only_background_patches=True)
+            val_data, val_label = get_training_patches(train_files, args.label)
+            model =  BVNet3D(input_size =train_data.shape[1:], loss=get_loss(args.loss))
+            return model, train_data, label_data, val_data, val_label
+
+    train_data, label_data = get_train_data_slices(train_files, tag=args.label)
+    print("Done geting training slices...")
+    val_data, val_label = get_slices(val_files, label)
+    print("Done geting validation slices...")
+    if args.modelweights == None:
+        if(args.model=="BVNet"):
+            model = BVNet(input_size =train_data.shape[1:], loss=get_loss(args.loss))
+        if(args.model == "unet"):
+            model = unet(input_size=train_data_shape, loss= get_loss(args.loss))
+    return model, train_data, label_data, val_data, val_label
+
 def main(args):
-    #gpu_config()
+    gpu_config()
     # Ensure training, testing, and manip are not all turned off
     assert ((args.train or args.test) and args.label ), 'Cannot have train, test, and label all set to 0, Nothing to do.'
     #overwrite = False
     gpu_config()
-    model_name = "BVNet"
     # label must be noe of the coronary arteries
-    modelpath = model_name+ "_"+ args.label + "_"+ args.loss
+    modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + ".hdf5"
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
@@ -53,33 +74,18 @@ def main(args):
     except:
         create_split(args.data_root_dir, args.label)
         train_files, val_files, test_files = get_train_val_test(args.label)
-    if args.modelweights != None:
-        print("Loading model")
-        #prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-        prediction_model= load_model(args.modelweights, custom_objects=custom_objects)
+
+        #prediction_model = get_model(args.model, args.modelweights, train_data.shape[1:], args.loss)
 
     if args.train:
-        #from train import train
-        # Run training
-
-        train_data, label_data = get_train_data_slices(train_files, tag=label)
-        #augmentImages(train_data, label_data)
-
-        print("Done geting training slices...")
-        val_data, val_label = get_slices(val_files, label)
-        print("Done geting validation slices...")
-        if model_name == "BVNet":
-            print(args.loss)
-            model = BVNet(args.modelweights, input_size =train_data.shape[1:], loss=dice_coefficient_loss)
-        train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
-        prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
+        prediction_model, train_data, label_data, val_data, val_label = get_model(args, train_files, train_files)
+        train_model(prediction_model, train_data, label_data, val_data, val_label, modelpath=modelpath)
+        #prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
 
     if args.test:
-        #from test import test
-        # Run testing
-        #prediction_model = load_model('./models/BVNet_both.hdf5', custom_objects=custom_objects)
-
+        print("Loading model")
+        prediction_model= load_model(modelpath, custom_objects=custom_objects)
         test(test_files, args.label, prediction_model, modelpath)
 
 
@@ -90,6 +96,8 @@ if __name__ == '__main__':
     parser.add_argument('--weights_path', type=str, default='',
                         help='/path/to/trained_model.hdf5 from root. Set to "" for none.')
     parser.add_argument('--train', type=int, default=1, choices=[0,1],
+                        help='Set to 1 to enable training.')
+    parser.add_argument('--model', type=str, default="BVNet", choices=["BVNet","BVNet3D", "unet"],
                         help='Set to 1 to enable training.')
     parser.add_argument('--modelweights', type=str, default=None,
                         help='Set to the path for the  weights of the model check the model folder ex ./model/BVNet_LM.hdf5.')
