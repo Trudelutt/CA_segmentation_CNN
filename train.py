@@ -13,6 +13,7 @@ from keras.backend.tensorflow_backend import set_session
 from metric import *
 from loss_function import dice_coefficient_loss, dice_coefficient
 from test import test
+from batch_generator import generate_train_batches, generate_val_batches
 
 
 """def gpu_config():
@@ -30,12 +31,20 @@ def getCallBacks(modelpath):
 
 
 
-def train_model(model, input, target, val_x, val_y, modelpath):
+def train_model(model, train_list,val_list, args, modelpath):
     print("Inside training")
 
     #model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
     #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
-    history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
+    #history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
+    history = model.fit_generator(generate_train_batches(args.label,train_list, net_input_shape=(512,512,5),  batchSize=4, numSlices=1, subSampAmt=-1,
+                               stride=1, downSampAmt=1, shuff=1, aug_data=1),
+     steps_per_epoch=10000,
+      epochs=500,
+       verbose=1,
+        callbacks=getCallBacks(modelpath),
+         validation_data=generate_val_batches(args.label,val_list, net_input_shape=(512,512,5),  batchSize=1, numSlices=1, subSampAmt=-1,
+                                    stride=1, downSampAmt=1, shuff=1, aug_data=1), validation_steps= 500, initial_epoch=0)
     with open('./history/'+ modelpath + '.json', 'w') as f:
         json.dump(history.history, f)
         print("Saved history....")

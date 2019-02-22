@@ -48,7 +48,7 @@ def get_model(args, train_files, val_files):
 
     train_data, label_data = get_train_data_slices(train_files, tag=args.label)
     print("Done geting training slices...")
-    val_data, val_label = get_slices(val_files, label)
+    val_data, val_label = get_slices(val_files, args.label)
     print("Done geting validation slices...")
     if args.modelweights == None:
         if(args.model=="BVNet"):
@@ -78,8 +78,8 @@ def main(args):
         #prediction_model = get_model(args.model, args.modelweights, train_data.shape[1:], args.loss)
 
     if args.train:
-        prediction_model, train_data, label_data, val_data, val_label = get_model(args, train_files, train_files)
-        train_model(prediction_model, train_data, label_data, val_data, val_label, modelpath=modelpath)
+        prediction_model, train_data, label_data, val_data, val_label = get_model(args, train_files[:2], val_files[:2])
+        train_model(prediction_model, train_files[:1], val_files[:1], args, modelpath=modelpath)
         #prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
 

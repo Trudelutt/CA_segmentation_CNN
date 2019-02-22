@@ -5,12 +5,13 @@ import pandas as pd
 import SimpleITK as sitk
 import numpy as np
 import matplotlib.pyplot as plt
+#from batch_generator import generate_train_batches
 from glob import glob
 from os import mkdir
 from os.path import join, basename
 from tqdm import tqdm
 from keras.utils import to_categorical
-from keras.preprocessing.image import ImageDataGenerator
+#from keras.preprocessing.image import ImageDataGenerator
 from skimage.transform import resize
 from sklearn.model_selection import train_test_split
 import nibabel as nib
@@ -18,11 +19,88 @@ import nibabel as nib
 
 
 
-def preprosses_images(image, label):
+def create_split(data_root_dir, label):
+    print("Create split")
+    training_list = fetch_training_data_ca_files(data_root_dir,label)
+    training_val_list, test_list = train_test_split(training_list, test_size=0.1, random_state=7)
+    new_training_list, val_list = train_test_split(training_val_list, test_size=0.1, random_state=7)
+    outdir = label + '_split_lists'
+    try:
+        mkdir(outdir)
+    except:
+        print("Could not create foulder")
+
+    with open(join(outdir,'split_train.csv'), 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for sample in new_training_list:
+            writer.writerow([x for x in sample])
+    with open(join(outdir,'split_val.csv'), 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for sample in val_list:
+            writer.writerow([x for x in sample])
+    with open(join(outdir,'split_test.csv'), 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for sample in test_list:
+            writer.writerow([x for x in sample])
+
+def get_train_val_test(label):
+    train, val, test = [], [], []
+    outdir= label+ '_split_lists'
+    train = pd.read_csv(join(outdir,'split_train.csv'), sep=',',header=None).values
+    val = pd.read_csv(join(outdir,'split_val.csv'), sep=',',header=None).values
+    test = pd.read_csv(join(outdir,'split_test.csv'), sep=',',header=None).values
+    print("trainfiles: " + str(len(train)) + ", valfiles: " + str(len(val)) + ", testfiles: " + str(len(test)))
+    return train, val, test
+
+
+#Both LM and RCA
+def make_both_label():
+    path = glob("../st.Olav/*/*/*/")
+    for i in range(len(path)):
+        try:
+            data_path = glob(path[i] + "*CCTA.nii.gz")[0]
+            print(data_path)
+            label_path = [glob(path[i] + "*LM.nii.gz")[0], glob(path[i] + "*RCA.nii.gz")[0]]
+            sitk_label  = sitk.ReadImage(label_path[0], sitk.sitkFloat32)
+            sitk_label  += sitk.ReadImage(label_path[1], sitk.sitkFloat32 )
+            sitk.WriteImage(sitk_label, data_path.replace("CCTA", "both"))
+        except:
+            print("Could not make both file" + str(glob(path[i])))
+
+def write_pridiction_to_file(label_array, prediction_array, tag, path="./predictions/prediction.nii.gz", label_path=None):
+    meta_sitk = sitk.ReadImage(label_path)
+    print(prediction_array.shape)
+    sitk_image = sitk.GetImageFromArray(label_array)
+    sitk_image.CopyInformation(meta_sitk)
+    sitk.WriteImage(sitk_image, path.replace("nii", "gt.nii"))
+
+    predsitk_image = sitk.GetImageFromArray(prediction_array)
+    predsitk_image.CopyInformation(meta_sitk)
+    sitk.WriteImage(predsitk_image, path)
+    print("Writing prediction is done...")
+
+def write_to_file(numpy_array, meta_path, path):
+    print(path)
+    meta_sitk = sitk.ReadImage(meta_path)
+    sitk_image = sitk.GetImageFromArray(numpy_array[:meta_sitk.GetDepth()])
+    sitk_image.CopyInformation(meta_sitk)
+    sitk.WriteImage(sitk_image, path)
+
+def write_all_labels(path):
+    image = read_numpyarray_from_file(path+"LM.nii.gz")
+    image += read_numpyarray_from_file(path+"Aorta.nii.gz")
+    image += read_numpyarray_from_file(path+ "RCA.nii.gz")
+    image[image == 2] = 1
+    sitk_image = sitk.GetImageFromArray(image)
+    sitk.WriteImage(sitk_image, "all_labels.nii.gz")
+
+
+def preprosses_images(image, label_data):
     image -= np.min(image)
     image = image/ np.max(image)
     image -= np.mean(image)
     image = image / np.std(image)
+    label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
     return image, label
 
 
@@ -106,7 +184,7 @@ def add_neighbour_slides_training_data(image, label):
         print("HURRA channel 3 er riktig")
     if np.array_equal(image_with_channels[20][...,4], image[24]):
         print("HURRA channel 4 er riktig")"""
-
+    label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
     return image_with_channels, label
 
 
@@ -136,7 +214,7 @@ def fetch_training_data_ca_files(data_root_dir,label="LM"):
 
 def get_train_and_label_numpy(number_of_slices, train_list, label_list):
     train_data = np.zeros((number_of_slices, train_list[0].shape[1], train_list[0].shape[2], 5))
-    label_data = np.zeros((number_of_slices, label_list[0].shape[1], label_list[0].shape[2]))
+    label_data = np.zeros((number_of_slices, label_list[0].shape[1], label_list[0].shape[2], 1))
     index = 0
     for i in range(len(train_list)):
         with tqdm(total=train_list[i].shape[0], desc='Adds splice  from image ' + str(i+1) +"/" + str(len(train_list))) as t:
@@ -165,26 +243,6 @@ def get_prediced_image_of_test_files(files, number, tag):
     return get_slices(files[number:number+1], tag)
 
 
-def write_pridiction_to_file(label_array, prediction_array, tag, path="./predictions/prediction.nii.gz", label_path=None):
-    meta_sitk = sitk.ReadImage(label_path)
-    print(prediction_array.shape)
-    sitk_image = sitk.GetImageFromArray(label_array)
-    sitk_image.CopyInformation(meta_sitk)
-    sitk.WriteImage(sitk_image, path.replace("nii", "gt.nii"))
-
-    predsitk_image = sitk.GetImageFromArray(prediction_array)
-    predsitk_image.CopyInformation(meta_sitk)
-    sitk.WriteImage(predsitk_image, path)
-    print("Writing prediction is done...")
-
-def write_to_file(numpy_array, meta_path, path):
-    print(path)
-    meta_sitk = sitk.ReadImage(meta_path)
-    sitk_image = sitk.GetImageFromArray(numpy_array[:meta_sitk.GetDepth()])
-    sitk_image.CopyInformation(meta_sitk)
-    sitk.WriteImage(sitk_image, path)
-
-
 
 # Assume to have some sitk image (itk_image) and label (itk_label)
 def get_data_files(data_root_dir, label="LM"):
@@ -207,12 +265,11 @@ def get_train_data_slices(train_files, tag = "LM"):
         traindata.append(resized_image)
         labeldata.append(resized_label)
         #aug_img, mask = dataaug(resized_image, resized_label, intensityinterval= [0.8, 1.2], print_aug_images= True)
-        #break
     train_data, label_data = get_train_and_label_numpy(count_slices, traindata, labeldata)
 
     print("min: " + str(np.min(train_data)) +", max: " + str(np.max(train_data)))
-    label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
-    return train_data, label
+    #label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
+    return train_data, label_data
 
 
 def get_slices(files, tag="LM"):
@@ -228,65 +285,11 @@ def get_slices(files, tag="LM"):
     train_data, label_data = get_train_and_label_numpy(count_slices, input_data_list, label_data_list)
 
     print("min: " + str(np.min(train_data)) +", max: " + str(np.max(train_data)))
-    label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
-    return train_data, label
+    #label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
+    return train_data, label_data
 
 
-def write_all_labels(path):
-    image = read_numpyarray_from_file(path+"LM.nii.gz")
-    image += read_numpyarray_from_file(path+"Aorta.nii.gz")
-    image += read_numpyarray_from_file(path+ "RCA.nii.gz")
-    image[image == 2] = 1
-    sitk_image = sitk.GetImageFromArray(image)
-    sitk.WriteImage(sitk_image, "all_labels.nii.gz")
 
-def create_split(data_root_dir, label):
-    print("Create split")
-    training_list = fetch_training_data_ca_files(data_root_dir,label)
-    training_val_list, test_list = train_test_split(training_list, test_size=0.1, random_state=7)
-    new_training_list, val_list = train_test_split(training_val_list, test_size=0.1, random_state=7)
-    outdir = label + '_split_lists'
-    try:
-        mkdir(outdir)
-    except:
-        print("Could not create foulder")
-
-    with open(join(outdir,'split_train.csv'), 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for sample in new_training_list:
-            writer.writerow([x for x in sample])
-    with open(join(outdir,'split_val.csv'), 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for sample in val_list:
-            writer.writerow([x for x in sample])
-    with open(join(outdir,'split_test.csv'), 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for sample in test_list:
-            writer.writerow([x for x in sample])
-
-def get_train_val_test(label):
-    train, val, test = [], [], []
-    outdir= label+ '_split_lists'
-    train = pd.read_csv(join(outdir,'split_train.csv'), sep=',',header=None).values
-    val = pd.read_csv(join(outdir,'split_val.csv'), sep=',',header=None).values
-    test = pd.read_csv(join(outdir,'split_test.csv'), sep=',',header=None).values
-    print("trainfiles: " + str(len(train)) + ", valfiles: " + str(len(val)) + ", testfiles: " + str(len(test)))
-    return train, val, test
-
-
-#Both LM and RCA
-def make_both_label():
-    path = glob("../st.Olav/*/*/*/")
-    for i in range(len(path)):
-        try:
-            data_path = glob(path[i] + "*CCTA.nii.gz")[0]
-            print(data_path)
-            label_path = [glob(path[i] + "*LM.nii.gz")[0], glob(path[i] + "*RCA.nii.gz")[0]]
-            sitk_label  = sitk.ReadImage(label_path[0], sitk.sitkFloat32)
-            sitk_label  += sitk.ReadImage(label_path[1], sitk.sitkFloat32 )
-            sitk.WriteImage(sitk_label, data_path.replace("CCTA", "both"))
-        except:
-            print("Could not make both file" + str(glob(path[i])))
 
 def get_patches(image_numpy, label_numpy, remove_only_background_patches=False):
     image_patch_list = []
@@ -356,13 +359,24 @@ def from_patches_to_numpy(patches, shape):
 
 
 
+
+
+
 if __name__ == "__main__":
-    #make_both_label()
-    #create_split("../st.Olav", "both")
     train, val, test = get_train_val_test("both")
-    print(test[0])
+    #pred, lab = get_prediced_image_of_test_files(test, 0, "both")
+    img_slices, lab_slices = get_train_data_slices(train[:1])
+
+    traingen= generate_train_batches("both",train[:1], net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
+                               stride=1, downSampAmt=1, shuff=0, aug_data=1)
+    i, l = traingen.next()
+    print("HAVE got next")
+    print(np.unique(np.equal(i, img_slices[0])))
+    print(np.unique(np.equal(l, lab_slices[0])))
+
+    """print(test[0])
     x, y, orgshape = get_prediced_patches_of_test_file(test, 0, "both")
     label = from_patches_to_numpy(y, orgshape)
     img, org_label = get_preprossed_numpy_arrays_from_file(test[0][0], test[0][1])
     print(np.unique(np.equal(org_label, label[:org_label.shape[0]])))
-    write_to_file(label, meta_path=test[0][0], path="./results/14.feb/" +str(basename(test[0][1])))
+    write_to_file(label, meta_path=test[0][0], path="./results/14.feb/" +str(basename(test[0][1])))"""
