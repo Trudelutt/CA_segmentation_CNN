@@ -11,6 +11,8 @@ from numpy.random import rand, shuffle
 import SimpleITK as sitk
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+import numpy as np
+import keras
 
 import matplotlib
 matplotlib.use('Agg')
@@ -49,13 +51,8 @@ def convert_data_to_numpy(img_name, no_masks=False, overwrite=False, train=False
     numpy_path = 'np_files'
     img_path = img_name[0]
     mask_path = img_name[1]
-    fig_path = 'figs'
     try:
         mkdir(numpy_path)
-    except:
-        pass
-    try:
-        mkdir(fig_path)
     except:
         pass
 
@@ -76,49 +73,6 @@ def convert_data_to_numpy(img_name, no_masks=False, overwrite=False, train=False
         img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label)
         if train:
             img, mask = remove_slices_with_just_background(img, mask)
-
-
-        """if not no_masks:
-            itk_mask = sitk.ReadImage(img_name)
-            mask = sitk.GetArrayFromImage(itk_mask)
-            mask = np.rollaxis(mask, 0, 3)
-            mask[mask > 250] = 1 # In case using 255 instead of 1
-            mask[mask > 4.5] = 0 # Trachea = 5
-            mask[mask >= 1] = 1 # Left lung = 3, Right lung = 4
-            mask[mask != 1] = 0 # Non-Lung/Background
-            mask = mask.astype(np.uint8)"""
-
-        """try:
-            f, ax = plt.subplots(1, 3, figsize=(15, 5))
-
-            ax[0].imshow(img[:, :, img.shape[2] // 3], cmap='gray')
-            if not no_masks:
-                ax[0].imshow(mask[:, :, img.shape[2] // 3], alpha=0.15)
-            ax[0].set_title('Slice {}/{}'.format(img.shape[2] // 3, img.shape[2]))
-            ax[0].axis('off')
-
-            ax[1].imshow(img[:, :, img.shape[2] // 2], cmap='gray')
-            if not no_masks:
-                ax[1].imshow(mask[:, :, img.shape[2] // 2], alpha=0.15)
-            ax[1].set_title('Slice {}/{}'.format(img.shape[2] // 2, img.shape[2]))
-            ax[1].axis('off')
-
-            ax[2].imshow(img[:, :, img.shape[2] // 2 + img.shape[2] // 4], cmap='gray')
-            if not no_masks:
-                ax[2].imshow(mask[:, :, img.shape[2] // 2 + img.shape[2] // 4], alpha=0.15)
-            ax[2].set_title('Slice {}/{}'.format(img.shape[2] // 2 + img.shape[2] // 4, img.shape[2]))
-            ax[2].axis('off')
-
-            fig = plt.gcf()
-            fig.suptitle(fname)
-
-            plt.savefig(join(fig_path, fname + '.png'), format='png', bbox_inches='tight')
-            plt.close(fig)
-        except Exception as e:
-            print('\n'+'-'*100)
-            print('Error creating qualitative figure for {}'.format(fname))
-            print(e)
-            print('-'*100+'\n')"""
 
         if not no_masks:
             np.savez_compressed(join(numpy_path, fname + '.npz'), img=img, mask=mask)
@@ -152,9 +106,12 @@ class threadsafe_iter:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def next(self):
         with self.lock:
-            return self.it.__next__()
+            return self.it.next()
+
+
+
 
 
 def threadsafe_generator(f):
@@ -164,12 +121,14 @@ def threadsafe_generator(f):
         return threadsafe_iter(f(*a, **kw))
     return g
 
-@threadsafe_generator
-def generate_train_batches(label,train_list, net_input_shape,  batchSize=1, numSlices=1, subSampAmt=-1,
+"""@threadsafe_generator
+def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
                            stride=1, downSampAmt=1, shuff=1, aug_data=1):
     # Create placeholders for training
-    img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
-    mask_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.uint8)
+    print("HEHE")
+    #print(net_input_shape)
+    img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.float32)
+    mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.uint8)
     print("INSIDE train")
     while True:
         if shuff:
@@ -189,11 +148,6 @@ def generate_train_batches(label,train_list, net_input_shape,  batchSize=1, numS
                     continue
                 else:
                     print('\nFinished making npz file.')
-            if numSlices == 1:
-                subSampAmt = 0
-            """elif subSampAmt == -1 and numSlices > 1:
-                np.random.seed(None)
-                subSampAmt = int(rand(1)*(train_img.shape[2]*0.05))"""
 
             indicies = np.arange(train_img.shape[0])
             if shuff:
@@ -205,93 +159,190 @@ def generate_train_batches(label,train_list, net_input_shape,  batchSize=1, numS
                 if img_batch.ndim == 4:
                     img_batch[count:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:] = train_mask[j:j+1]
-                elif img_batch.ndim == 5:
-                    # Assumes img and mask are single channel. Replace 0 with : if multi-channel.
-                    img_batch[:count] = train_img[j:j + numSlices * (subSampAmt+1):subSampAmt+1,:, :]
-                    mask_batch[:count] = train_mask[j:j + numSlices * (subSampAmt+1):subSampAmt+1,:, :]
+
                 else:
                     print('Error this function currently only supports 2D and 3D data.')
                     exit(0)
 
                 count += 1
                 if count % batchSize == 0:
+                    print("HHHHH")
                     count = 0
-                    yield (img_batch, mask_batch)
-                    """if aug_data:
-                        img_batch, mask_batch = augmentImages(img_batch, mask_batch)
-                    if debug:
-                        if img_batch.ndim == 4:
-                            plt.imshow(np.squeeze(img_batch[0, :, :, 0]), cmap='gray')
-                            plt.imshow(np.squeeze(mask_batch[0, :, :, 0]), alpha=0.15)
-                        elif img_batch.ndim == 5:
-                            plt.imshow(np.squeeze(img_batch[0, :, :, 0, 0]), cmap='gray')
-                            plt.imshow(np.squeeze(mask_batch[0, :, :, 0, 0]), alpha=0.15)
-                        plt.savefig(join( 'logs', 'ex_train.png'), format='png', bbox_inches='tight')
-                        plt.close()
-                    if net.find('caps') != -1:
-                        yield ([img_batch, mask_batch], [mask_batch, mask_batch*img_batch])
-                    else:
-                        yield (img_batch, mask_batch)"""
+                    yield (img_batch, mask_batch)"""
 
-        """if count != 0:
-            if aug_data:
-                img_batch[:count,...], mask_batch[:count,...] = augmentImages(img_batch[:count,...],
-                                                                              mask_batch[:count,...])
-            if net.find('caps') != -1:
-                yield ([img_batch[:count, ...], mask_batch[:count, ...]],
-                       [mask_batch[:count, ...], mask_batch[:count, ...] * img_batch[:count, ...]])
-            else:
-                yield (img_batch[:count,...], mask_batch[:count,...])"""
 
-@threadsafe_generator
-def generate_val_batches(label,val_list, net_input_shape=(512,512,5),  batchSize=1, numSlices=1, subSampAmt=-1,
-                           stride=1, downSampAmt=1, shuff=1, aug_data=1):
-    img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
-    mask_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.uint8)
-    while True:
-        if shuff:
-            shuffle(val_list)
+
+class generate_train_batches(keras.utils.Sequence):
+    #Generates data for Keras
+    def __init__(self, train_list, batch_size=1, dim=(512,515), n_channels=5, shuffle=True):
+        'Initialization'
+        self.dim = dim
+        self.n_channels = n_channels
+        self.batch_size = batch_size
+        self.train_list = train_list
+        self.shuffle = shuffle
+        self.on_epoch_end()
+
+    def __len__(self):
+        #'Denotes the number of batches per epoch'
+        return int(np.floor(10000 / self.batch_size))
+
+    def __getitem__(self,i):
+        #'Generate one batch of data'
+        # Generate indexes of the batch
+        #indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+
+        # Find list of IDs
+        #train_list_temp = [self.train_list[k] for k in indexes]
+
+        # Generate data
+        X, y = self.__data_generation(self.train_list)
+
+        return X, y
+
+    def on_epoch_end(self):
+        #'Updates indexes after each epoch'
+        self.indexes = np.arange(len(self.train_list))
+        if self.shuffle == True:
+            np.random.shuffle(self.indexes)
+
+    def __data_generation(self, list_IDs_temp):
+        #'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+        # Initialization
+        img_batch = np.zeros((np.concatenate(((self.batch_size,), (512,512,5)))), dtype=np.float32)
+        mask_batch = np.zeros((np.concatenate(((self.batch_size,), (512,512,1)))), dtype=np.uint8)
+
+        # Generate data
+        # Create placeholders for training
+        #print(list_IDs_temp)
+        #print(self.indexes)
+
+        #print("INSIDE train")
         count = 0
-        for i, scan_name in enumerate(train_list):
+        for i, scan_name in enumerate(self.train_list):
+            #scan_name = self.train_list[i]
+            #print("SCanname")
+            #print(scan_name)
             try:
-                scan_name = scan_name
+                #scan_name = scan_name
                 path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
                 with np.load(path_to_np) as data:
-                    val_img = data['img']
-                    val_mask = data['mask']
+                    train_img = data['img']
+                    train_mask = data['mask']
             except:
+                #print("inside except")
+                #print(scan_name)
                 print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
-                val_img, val_mask = convert_data_to_numpy(scan_name)
-                if np.array_equal(val_img,np.zeros(1)):
+                train_img, train_mask = convert_data_to_numpy(scan_name, train=True)
+                if np.array_equal(train_img,np.zeros(1)):
                     continue
                 else:
                     print('\nFinished making npz file.')
-            if numSlices == 1:
-                subSampAmt = 0
-            """elif subSampAmt == -1 and numSlices > 1:
-                np.random.seed(None)
-                subSampAmt = int(rand(1)*(train_img.shape[2]*0.05))"""
-
-            indicies = np.arange(val_img.shape[0])
-            if shuff:
-                shuffle(indicies)
-            print(img_batch.shape)
+            indicies = np.arange(train_img.shape[0])
+            #if shuff:
+                #shuffle(indicies)
+            #print(img_batch.shape)
             for j in indicies:
                 #if not np.any(train_mask[:, :, j:j + numSlices * (subSampAmt+1):subSampAmt+1]):
                     #continue
                 if img_batch.ndim == 4:
-                    img_batch[count:,:,:] = val_img[j:j+1]
-                    mask_batch[count:,:,:] = val_mask[j:j+1]
+                    img_batch[count:,:,:] = train_img[j:j+1]
+                    mask_batch[count:,:,:] = train_mask[j:j+1]
                 else:
                     print('Error this function currently only supports 2D and 3D data.')
                     exit(0)
 
                 count += 1
-                if count % batchSize == 0:
+                if count % self.batch_size == 0:
                     count = 0
-                    yield (img_batch, mask_batch)
+                    #print("RETURNS")
+                    return (img_batch, mask_batch)
 
+class generate_val_batches(keras.utils.Sequence):
+        #Generates data for Keras
+        def __init__(self, train_list, batch_size=1, dim=(512,515), n_channels=5, shuffle=True):
+            'Initialization'
+            self.dim = dim
+            self.n_channels = n_channels
+            self.batch_size = batch_size
+            self.train_list = train_list
+            self.shuffle = shuffle
+            self.on_epoch_end()
 
+        def __len__(self):
+            #'Denotes the number of batches per epoch'
+            return int(np.floor(500 / self.batch_size))
+
+        def __getitem__(self,i):
+            #'Generate one batch of data'
+            # Generate indexes of the batch
+            #indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+
+            # Find list of IDs
+            #train_list_temp = [self.train_list[k] for k in indexes]
+
+            # Generate data
+            X, y = self.__data_generation(self.train_list)
+
+            return X, y
+
+        def on_epoch_end(self):
+            #'Updates indexes after each epoch'
+            self.indexes = np.arange(len(self.train_list))
+            if self.shuffle == True:
+                np.random.shuffle(self.indexes)
+
+        def __data_generation(self, list_IDs_temp):
+            #'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+            # Initialization
+            img_batch = np.zeros((np.concatenate(((self.batch_size,), (512,512,5)))), dtype=np.float32)
+            mask_batch = np.zeros((np.concatenate(((self.batch_size,), (512,512,1)))), dtype=np.uint8)
+
+            # Generate data
+            # Create placeholders for training
+            #print(list_IDs_temp)
+            #print(self.indexes)
+
+            #print("INSIDE train")
+            count = 0
+            for i, scan_name in enumerate(self.train_list):
+                #scan_name = self.train_list[i]
+                #print("SCanname")
+                #print(scan_name)
+                try:
+                    #scan_name = scan_name
+                    path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
+                    with np.load(path_to_np) as data:
+                        train_img = data['img']
+                        train_mask = data['mask']
+                except:
+                    #print("inside except")
+                    #print(scan_name)
+                    print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
+                    train_img, train_mask = convert_data_to_numpy(scan_name, train=False)
+                    if np.array_equal(train_img,np.zeros(1)):
+                        continue
+                    else:
+                        print('\nFinished making npz file.')
+                indicies = np.arange(train_img.shape[0])
+                #if shuff:
+                    #shuffle(indicies)
+                #print(img_batch.shape)
+                for j in indicies:
+                    #if not np.any(train_mask[:, :, j:j + numSlices * (subSampAmt+1):subSampAmt+1]):
+                        #continue
+                    if img_batch.ndim == 4:
+                        img_batch[count:,:,:] = train_img[j:j+1]
+                        mask_batch[count:,:,:] = train_mask[j:j+1]
+                    else:
+                        print('Error this function currently only supports 2D and 3D data.')
+                        exit(0)
+
+                    count += 1
+                    if count % self.batch_size == 0:
+                        count = 0
+                        #print("RETURNS")
+                        return (img_batch, mask_batch)
 
 if __name__ == "__main__":
     train, val, test = get_train_val_test("both")
@@ -321,6 +372,6 @@ if __name__ == "__main__":
     for i in range(0,lab_slices.shape[0] - lab_slices.shape[0]%4,4):
         print(i)
 
-        l= traingen.next()[1]
+        l= traingen.__next__()[1]
         print(l.shape)
         print(np.unique(np.equal(l, lab_slices[i:i+4])))
