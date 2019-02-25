@@ -56,7 +56,7 @@ def get_train_val_test(label):
 #Both LM and RCA
 def make_both_label():
     path = glob("../st.Olav/*/*/*/")
-    for i in range(len(path)):
+    for i in xrange(len(path)):
         try:
             data_path = glob(path[i] + "*CCTA.nii.gz")[0]
             print(data_path)
@@ -117,7 +117,7 @@ def remove_slices_with_just_background(image, label):
     last_non_backgroud_slice = -1
     image_list = []
     label_list = []
-    for i in range(image.shape[0]):
+    for i in xrange(image.shape[0]):
         if(1 in label[i]):
             if(i < first_non_backgroud_slice):
                 first_non_backgroud_slice = i
@@ -139,7 +139,7 @@ def remove_slices_with_just_background(image, label):
 def add_neighbour_slides_training_data(image, label):
     image_with_channels = np.zeros((image.shape[0], image.shape[1], image.shape[2], 5))
     zeros_image = np.zeros(image[0].shape)
-    for i in range(image.shape[0]):
+    for i in xrange(image.shape[0]):
         if(i == 0):
             image_with_channels[i][...,0] = zeros_image
             image_with_channels[i][...,1] = zeros_image
@@ -196,7 +196,7 @@ def fetch_training_data_ca_files(data_root_dir,label="LM"):
         data_root_dir += "/*/*/*/"
     path = glob(data_root_dir)
     training_data_files= list()
-    for i in range(len(path)):
+    for i in xrange(len(path)):
         try:
             data_path = glob(path[i] + "*CCTA.nii.gz")[0]
             label_path = glob(path[i] + "*" + label + ".nii.gz")[0]
@@ -206,7 +206,7 @@ def fetch_training_data_ca_files(data_root_dir,label="LM"):
                 make_both_label()
                 label_path = glob(path[i] + "*" + label + ".nii.gz")[0]
             else:
-                print("out of range for %s" %(path[i]))
+                print("out of xrange for %s" %(path[i]))
         else:
             training_data_files.append(tuple([data_path, label_path]))
     return training_data_files
@@ -216,9 +216,9 @@ def get_train_and_label_numpy(number_of_slices, train_list, label_list):
     train_data = np.zeros((number_of_slices, train_list[0].shape[1], train_list[0].shape[2], 5))
     label_data = np.zeros((number_of_slices, label_list[0].shape[1], label_list[0].shape[2], 1))
     index = 0
-    for i in range(len(train_list)):
+    for i in xrange(len(train_list)):
         with tqdm(total=train_list[i].shape[0], desc='Adds splice  from image ' + str(i+1) +"/" + str(len(train_list))) as t:
-            for k in range(train_list[i].shape[0]):
+            for k in xrange(train_list[i].shape[0]):
                 train_data[index] = train_list[i][k]
                 label_data[index] = label_list[i][k]
                 index += 1
@@ -301,9 +301,9 @@ def get_patches(image_numpy, label_numpy, remove_only_background_patches=False):
     #print(image_numpy_padded.shape)
     mask_padded = np.zeros(image_numpy_padded.shape)
     mask_padded[0:image_numpy.shape[0], 0:image_numpy.shape[1], 0:image_numpy.shape[2]] = label_numpy
-    for z in range(64, image_numpy_padded.shape[0],64):
-        for y in range(64, image_numpy_padded.shape[1],64):
-            for x in range(64,image_numpy_padded.shape[2],64):
+    for z in xrange(64, image_numpy_padded.shape[0],64):
+        for y in xrange(64, image_numpy_padded.shape[1],64):
+            for x in xrange(64,image_numpy_padded.shape[2],64):
                 mask_patch = mask_padded[z-64:z, y-64:y, x-64:x]
                 if remove_only_background_patches:
                     if np.all(mask_patch == 0):
@@ -345,9 +345,9 @@ def from_patches_to_numpy(patches, shape):
     print(reshape_patches.shape)
     image_numpy = np.zeros(shape)
     i = 0
-    for z in range(64, shape[0],64):
-        for y in range(64, shape[1],64):
-            for x in range(64, shape[2],64):
+    for z in xrange(64, shape[0],64):
+        for y in xrange(64, shape[1],64):
+            for x in xrange(64, shape[2],64):
                 image_numpy[z-64:z, y-64:y, x-64:x] = reshape_patches[i]
                 i += 1
     if(i != patches.shape[0]):

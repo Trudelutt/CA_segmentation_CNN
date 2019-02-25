@@ -37,13 +37,14 @@ def train_model(model, train_list,val_list, args, modelpath):
     #model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
     #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
     #history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
-    print(train_list)
-    history = model.fit_generator(generate_train_batches(train_list, batch_size=4),
+    #print(train_list)
+    history = model.fit_generator(generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1),
       epochs=500,
+      steps_per_epoch= 10000,
        verbose=1,
         callbacks=getCallBacks(modelpath),
-        validation_data= generate_val_batches(val_list),
-        validation_steps= 2, initial_epoch=0)
+        validation_data= generate_val_batches(train_list, net_input_shape=(512,512,5), batchSize=1),
+        validation_steps= 500, initial_epoch=0)
     with open('./history/'+ modelpath + '.json', 'w') as f:
         json.dump(history.history, f)
         print("Saved history....")
@@ -87,7 +88,7 @@ if __name__ == "__main__":
     print("Getting prediction model")
     prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
     test(test_files, label, prediction_model, modelpath)
-    """for i in range(len(test_files)):
+    """for i in xrange(len(test_files)):
         pred_sample, pred_label = get_prediced_image_of_test_files(test_files, i, tag=label)
         predict_model(prediction_model, pred_sample, pred_label, name=modelpath+"_"+str(i)+"_", label=label, label_path=test_files[i][1])
     evaluation(prediction_model, test_files, label)"""

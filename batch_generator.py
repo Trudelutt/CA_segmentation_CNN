@@ -121,15 +121,15 @@ def threadsafe_generator(f):
         return threadsafe_iter(f(*a, **kw))
     return g
 
-"""@threadsafe_generator
+@threadsafe_generator
 def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
-                           stride=1, downSampAmt=1, shuff=1, aug_data=1):
+                           stride=1, downSampAmt=1, shuff=0, aug_data=1):
     # Create placeholders for training
-    print("HEHE")
+    #print("HEHE")
     #print(net_input_shape)
     img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.float32)
-    mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.uint8)
-    print("INSIDE train")
+    mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
+    #print("INSIDE train")
     while True:
         if shuff:
             shuffle(train_list)
@@ -139,6 +139,7 @@ def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1,
                 scan_name = scan_name
                 path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
                 with np.load(path_to_np) as data:
+                    print(path_to_np)
                     train_img = data['img']
                     train_mask = data['mask']
             except:
@@ -166,13 +167,61 @@ def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1,
 
                 count += 1
                 if count % batchSize == 0:
-                    print("HHHHH")
                     count = 0
-                    yield (img_batch, mask_batch)"""
+                    yield (img_batch, mask_batch)
+
+@threadsafe_generator
+def generate_val_batches(train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
+                           stride=1, downSampAmt=1, shuff=0, aug_data=1):
+    # Create placeholders for training
+    #print("HEHE")
+    #print(net_input_shape)
+    img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.float32)
+    mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
+    #print("INSIDE train")
+    while True:
+        if shuff:
+            shuffle(train_list)
+        count = 0
+        for i, scan_name in enumerate(train_list):
+            try:
+                scan_name = scan_name
+                path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
+                with np.load(path_to_np) as data:
+                    print(path_to_np)
+                    train_img = data['img']
+                    train_mask = data['mask']
+            except:
+                print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
+                train_img, train_mask = convert_data_to_numpy(scan_name, train=False)
+                if np.array_equal(train_img,np.zeros(1)):
+                    continue
+                else:
+                    print('\nFinished making npz file.')
+
+            indicies = np.arange(train_img.shape[0])
+            if shuff:
+                shuffle(indicies)
+            print(img_batch.shape)
+            for j in indicies:
+                #if not np.any(train_mask[:, :, j:j + numSlices * (subSampAmt+1):subSampAmt+1]):
+                    #continue
+                if img_batch.ndim == 4:
+                    img_batch[count:,:,:] = train_img[j:j+1]
+                    mask_batch[count:,:,:] = train_mask[j:j+1]
+
+                else:
+                    print('Error this function currently only supports 2D and 3D data.')
+                    exit(0)
+
+                count += 1
+                if count % batchSize == 0:
+                    count = 0
+                    yield (img_batch, mask_batch)
 
 
 
-class generate_train_batches(keras.utils.Sequence):
+"""class generate_train_batches(keras.utils.Sequence):
     #Generates data for Keras
     def __init__(self, train_list, batch_size=1, dim=(512,515), n_channels=5, shuffle=True):
         'Initialization'
@@ -202,7 +251,7 @@ class generate_train_batches(keras.utils.Sequence):
 
     def on_epoch_end(self):
         #'Updates indexes after each epoch'
-        self.indexes = np.arange(len(self.train_list))
+        self.indexes = np.axrange(len(self.train_list))
         if self.shuffle == True:
             np.random.shuffle(self.indexes)
 
@@ -238,7 +287,7 @@ class generate_train_batches(keras.utils.Sequence):
                     continue
                 else:
                     print('\nFinished making npz file.')
-            indicies = np.arange(train_img.shape[0])
+            indicies = np.axrange(train_img.shape[0])
             #if shuff:
                 #shuffle(indicies)
             #print(img_batch.shape)
@@ -288,7 +337,7 @@ class generate_val_batches(keras.utils.Sequence):
 
         def on_epoch_end(self):
             #'Updates indexes after each epoch'
-            self.indexes = np.arange(len(self.train_list))
+            self.indexes = np.axrange(len(self.train_list))
             if self.shuffle == True:
                 np.random.shuffle(self.indexes)
 
@@ -308,7 +357,7 @@ class generate_val_batches(keras.utils.Sequence):
             for i, scan_name in enumerate(self.train_list):
                 #scan_name = self.train_list[i]
                 #print("SCanname")
-                #print(scan_name)
+                print(scan_name)
                 try:
                     #scan_name = scan_name
                     path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
@@ -324,10 +373,11 @@ class generate_val_batches(keras.utils.Sequence):
                         continue
                     else:
                         print('\nFinished making npz file.')
-                indicies = np.arange(train_img.shape[0])
+                indicies = np.axrange(train_img.shape[0])
                 #if shuff:
                     #shuffle(indicies)
-                #print(img_batch.shape)
+                print("shape inside generator")
+                print(train_img.shape)
                 for j in indicies:
                     #if not np.any(train_mask[:, :, j:j + numSlices * (subSampAmt+1):subSampAmt+1]):
                         #continue
@@ -342,16 +392,15 @@ class generate_val_batches(keras.utils.Sequence):
                     if count % self.batch_size == 0:
                         count = 0
                         #print("RETURNS")
-                        return (img_batch, mask_batch)
+                        return (img_batch, mask_batch)"""
 
 if __name__ == "__main__":
     train, val, test = get_train_val_test("both")
     #pred, lab = get_prediced_image_of_test_files(test, 0, "both")
-    img_slices, lab_slices = get_train_data_slices(train[:2])
+    img_slices, lab_slices = get_train_data_slices(train[2:4])
     print(img_slices.shape)
 
-    traingen= generate_train_batches("both",train[:2], net_input_shape=(512,512,5), batchSize=4, numSlices=1, subSampAmt=-1,
-                               stride=1, downSampAmt=1, shuff=0, aug_data=1)
+    traingen= generate_train_batches(train[2:4],net_input_shape=(512,512,5), batchSize=4)
     #i, l = traingen.next()
     """print("###")
     img_1, lab_1 = traingen.next()
@@ -365,13 +414,18 @@ if __name__ == "__main__":
     print(np.unique(l[0]))"""
     print(np.unique(lab_slices[0]))
     #print(lab_slices[0].shape)
-    print(np.unique(np.equal(lab_slices[0], lab_slices[1])))
-    #for i in range(lab_slices.shape[0]):
+    #print(np.unique(np.equal(lab_slices[0], lab_slices[1])))
+    #for i in xrange(lab_slices.shape[0]):
         #print(np.array_equal(lab_slices[i], traingen.next()[1]))
+    #l= traingen.__next__()[1]
     print("iteration")
-    for i in range(0,lab_slices.shape[0] - lab_slices.shape[0]%4,4):
+    #print(np.unique(np.equal(l, lab_slices[:1])))
+    for i in xrange(0,lab_slices.shape[0] - lab_slices.shape[0]%4,4):
+    #for i in xrange(lab_slices.shape[0]):
         print(i)
 
-        l= traingen.__next__()[1]
+        l= traingen.next()[1]
         print(l.shape)
+        print(np.unique(l))
+        #print(l.shape)
         print(np.unique(np.equal(l, lab_slices[i:i+4])))
