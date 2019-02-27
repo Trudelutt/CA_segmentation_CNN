@@ -6,6 +6,7 @@ import json
 from keras.utils import to_categorical
 from keras.callbacks import ModelCheckpoint, EarlyStopping, TerminateOnNaN
 from keras.models import load_model
+from os.path import basename
 from model import unet, BVNet
 from preprossesing import *
 import tensorflow as tf
@@ -16,13 +17,6 @@ from test import test
 from batch_generator import generate_train_batches,generate_val_batches
 
 
-"""def gpu_config():
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth=True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.8
-    #set_session(tf.Session(config = config))
-    sess = tf.Session(config=config)
-    sess.run(tf.global_variables_initializer())"""
 
 def getCallBacks(modelpath):
     model_checkpoint = ModelCheckpoint(modelpath, monitor='val_loss',verbose=1, save_best_only=True)
@@ -38,14 +32,14 @@ def train_model(model, train_list,val_list, args, modelpath):
     #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
     #history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
     #print(train_list)
-    history = model.fit_generator(generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1),
+    history = model.fit_generator(generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=4),
       epochs=500,
-      steps_per_epoch= 10000,
+      steps_per_epoch= int(200*len(train_list)/4),
        verbose=1,
         callbacks=getCallBacks(modelpath),
-        validation_data= generate_val_batches(train_list, net_input_shape=(512,512,5), batchSize=1),
-        validation_steps= 500, initial_epoch=0)
-    with open('./history/'+ modelpath + '.json', 'w') as f:
+        validation_data= generate_val_batches(val_list, net_input_shape=(512,512,5), batchSize=1),
+        validation_steps= int(200*len(val_list)), initial_epoch=0)
+    with open('./history/'+ basename(modelpath).split('.')[0] + '.json', 'w') as f:
         json.dump(history.history, f)
         print("Saved history....")
 

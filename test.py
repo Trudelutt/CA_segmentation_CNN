@@ -7,7 +7,7 @@ plt.ioff()
 
 import os
 from keras import backend as K
-from os.path import join
+from os.path import join, basename
 from os import makedirs
 import csv
 import SimpleITK as sitk
@@ -131,7 +131,7 @@ def make_result_csvfile(compute_dice, output_dir, test_list):
     # Testing the network
     print('Testing... This will take some time...')
 
-    with open(join(output_dir, outfile + 'scores.csv'), 'w') as csvfile:
+    with open(join(output_dir, outfile + 'scores.csv'), 'wb') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         print("open writer")
         row = ['Scan Name']
@@ -145,7 +145,7 @@ def make_result_csvfile(compute_dice, output_dir, test_list):
         writer.writerow(row)
 
 def add_result_to_csvfile(img_name, prediction, gt_data, output_dir, compute_dice):
-    with open(join(output_dir,  'scores.csv'), 'a+') as csvfile:
+    with open(join(output_dir,  'scores.csv'), 'ab+') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         row = img_name
         if compute_dice:
@@ -267,7 +267,7 @@ def test(test_list, label, model, modelpath):
         #write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
         add_result_to_csvfile([img[0][:-7]], output_array, gt_data, output_dir, True)
         # Plot Qual Figure
-        plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
+        #plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
 
     print('Done.')
 
