@@ -280,6 +280,9 @@ def get_slices(files, tag="LM"):
     count_slices = 0
     for element in files:
         numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1])
+        numpy_image = np.float32(numpy_image)
+        numpy_image -= np.mean(numpy_image)
+        numpy_image = numpy_image / np.std(numpy_image)
         i, l = add_neighbour_slides_training_data(numpy_image, numpy_label)
         count_slices += i.shape[0]
         input_data_list.append(i)

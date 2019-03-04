@@ -47,7 +47,7 @@ def augmentImages(batch_of_images, batch_of_mask, debugg= False):
 
 
 def add_brightness(images_batch):
-    sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+    sometimes = lambda aug: iaa.Sometimes(0.2, aug)
     seq = iaa.Sequential([sometimes(iaa.SomeOf((0, None),[
     iaa.Multiply((0.2, 1.5)),
     iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05*255))]))])
@@ -57,7 +57,7 @@ def add_brightness(images_batch):
 
 
 def add_afine_transformations(images_mask_batch):
-    sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+    sometimes = lambda aug: iaa.Sometimes(0.2, aug)
     seq = iaa.Sequential([sometimes(iaa.SomeOf((0,None),[
     iaa.Affine(scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},order=[0],
     cval=0,
