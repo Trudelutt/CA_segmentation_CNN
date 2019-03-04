@@ -1,5 +1,8 @@
 import scipy.misc
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.ioff()
 import numpy as np
 import tensorflow as tf
 import skimage
@@ -9,6 +12,13 @@ import imgaug as ia
 from keras.preprocessing.image import *
 from os.path import join, basename
 
+def get_ploting_read_mask(mask):
+    print(mask.shape)
+    new_mask = np.zeros((mask.shape[0], mask.shape[1], 3))
+    #new_mask[mask == 1] = np.array([1,0,0])
+    #new_mask[mask == 0] = np.array([0,0,0])
+    new_mask[...,0] = mask[...,0]
+    return new_mask
 
 def augmentImages(batch_of_images, batch_of_mask, debugg= False):
     images_mask_batch = np.concatenate((np.uint8(batch_of_images), batch_of_mask), axis=3)
@@ -22,17 +32,19 @@ def augmentImages(batch_of_images, batch_of_mask, debugg= False):
     if(debugg):
         count = 0
         for i in range(len(aug_images)):
-            #print(np.unique(np.array_equal(batch_of_images, aug_images)))
-            #print("aug")
-            #print(aug_images.shape)
+            #plot_aug_mask = np.zeros(aug_mask[i].shape)
+            plot_aug_mask = aug_mask[i]
+            plot_aug_mask = get_ploting_read_mask(plot_aug_mask)
             plt.figure()
             plt.imshow(np.squeeze(aug_images[i][...,2]), cmap='gray')
-            plt.imshow(np.squeeze(aug_mask[i][...,0]), alpha=0.3, cmap='Reds')
+            plt.imshow(np.squeeze(plot_aug_mask), alpha=0.3, cmap='gray')
             plt.savefig(join( 'logs', 'ex_'+str(i)+'_train.png'), format='png', bbox_inches='tight')
             plt.close()
+            plot_gt_mask = batch_of_mask[i]
+            plot_gt_mask = get_ploting_read_mask(plot_gt_mask)
             plt.figure()
             plt.imshow(np.squeeze(batch_of_images[i][...,2]), cmap='gray')
-            plt.imshow(np.squeeze(batch_of_mask[i][...,0]), alpha=0.3, cmap='Reds')
+            plt.imshow(np.squeeze(plot_gt_mask), alpha=0.3, cmap='gray')
             plt.savefig(join( 'logs', 'ex_'+str(i)+'_gt_train.png'), format='png', bbox_inches='tight')
             plt.close()
 
@@ -49,6 +61,7 @@ def augmentImages(batch_of_images, batch_of_mask, debugg= False):
 def add_brightness(images_batch):
     sometimes = lambda aug: iaa.Sometimes(0.2, aug)
     seq = iaa.Sequential([sometimes(iaa.SomeOf((0, None),[
+    #seq = iaa.Sequential([iaa.SomeOf(1,[
     iaa.Multiply((0.2, 1.5)),
     iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05*255))]))])
     aug_images = seq.augment_images(images_batch)

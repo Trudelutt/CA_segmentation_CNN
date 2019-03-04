@@ -64,7 +64,7 @@ def main(args):
     #overwrite = False
     gpu_config()
     # label must be noe of the coronary arteries
-    modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + ".hdf5"
+    modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + '_batch4_aug'+ ".hdf5"
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 

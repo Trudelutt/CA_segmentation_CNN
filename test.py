@@ -13,11 +13,12 @@ import csv
 import SimpleITK as sitk
 from tqdm import tqdm
 import numpy as np
+import pandas as pd
 import scipy.ndimage.morphology
 from skimage import measure, filters
-#from metrics import dc, jc, assd
 from preprossesing import get_prediced_image_of_test_files, write_pridiction_to_file, get_prediced_patches_of_test_file, from_patches_to_numpy
 from loss_function import dice_coefficient
+from metric import recall, precision
 
 from keras import backend as K
 K.set_image_data_format('channels_last')
@@ -115,57 +116,60 @@ def threshold_mask(raw_output, threshold):
     return thresholded_mask"""
     return thresholded_mask
 
-def make_result_csvfile(compute_dice, output_dir, test_list):
+def make_result_csvfile(output_dir, test_list, outfile='', compute_dice=1, compute_recall=1, compute_precision=1):
     # Set up placeholders
-    outfile = ''
-    if compute_dice:
-        dice_arr = np.zeros((len(test_list)))
-        #outfile += 'dice_'
-    """if args.compute_jaccard:
-        jacc_arr = np.zeros((len(test_list)))
-        outfile += 'jacc_'
-    if args.compute_assd:
-        assd_arr = np.zeros((len(test_list)))
-        outfile += 'assd_'"""
-
-    # Testing the network
-    print('Testing... This will take some time...')
-
     with open(join(output_dir, outfile + 'scores.csv'), 'wb') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         print("open writer")
         row = ['Scan Name']
         if compute_dice:
             row.append('Dice Coefficient')
-        """if args.compute_jaccard:
-            row.append('Jaccard Index')
-        if args.compute_assd:
-            row.append('Average Symmetric Surface Distance')"""
+        if compute_recall:
+            row.append('Recall')
+        if compute_precision:
+            row.append('precision')
+
 
         writer.writerow(row)
 
-def add_result_to_csvfile(img_name, prediction, gt_data, output_dir, compute_dice):
-    with open(join(output_dir,  'scores.csv'), 'ab+') as csvfile:
+def add_result_to_csvfile(img_name, prediction, gt_data, output_dir, outfile, compute_dice=1, compute_recall=1, compute_precision=1):
+    with open(join(output_dir,  outfile + 'scores.csv'), 'ab+') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         row = img_name
+        prediction = prediction.reshape(gt_data.shape)
         if compute_dice:
             print('Computing Dice')
-
             dice_arr = K.eval(dice_coefficient(prediction.astype(np.float32), gt_data.astype(np.float32)))
             print('\tDice: {}'.format(dice_arr))
             row.append(dice_arr)
-        """if args.compute_jaccard:
-            print('Computing Jaccard')
-            jacc_arr[i] = jc(output_bin, gt_data)
-            print('\tJaccard: {}'.format(jacc_arr[i]))
-            row.append(jacc_arr[i])
-        if args.compute_assd:
-            print('Computing ASSD')
-            assd_arr[i] = assd(output_bin, gt_data, voxelspacing=sitk_img.GetSpacing(), connectivity=1)
-            print('\tASSD: {}'.format(assd_arr[i]))
-            row.append(assd_arr[i])"""
+
+        if compute_recall:
+            print('Computing Recall')
+            recall_arr = K.eval(recall(prediction.astype(np.float32), gt_data.astype(np.float32)))
+            print('\tRecall: {}'.format(recall_arr))
+            row.append(recall_arr)
+
+        if compute_precision:
+            print('Computing Precision')
+            precision_arr = K.eval(precision(prediction.astype(np.float32), gt_data.astype(np.float32)))
+            print('\tPrecision: {}'.format(precision_arr))
+            row.append(precision_arr)
 
         writer.writerow(row)
+
+def compute_avg(output_dir, outfile, compute_dice=1, compute_recall=1, compute_precision=1):
+    result = np.float32(pd.read_csv(join(output_dir,  outfile + 'scores.csv'), sep=',',header=None).values[1:,1:])
+    row = ['Average Scores']
+    with open(join(output_dir,  outfile + 'scores.csv'), 'ab+') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        if compute_dice:
+            row.append(np.mean(result[:,0]))
+        if compute_recall:
+            row.append(np.mean(result[:,1]))
+        if compute_precision:
+            row.append(np.mean(result[:,2]))
+        writer.writerow(row)
+
 
 
 def plot_gt_predtion_on_slices(img_data, output_bin, gt_data, path):
@@ -209,7 +213,7 @@ def test(test_list, label, model, modelpath):
     else:
         weights_path = join(args.data_root_dir, args.weights_path)"""
 
-    output_dir = join('results', basename(modelpath.replace("hdf5", "")))
+    output_dir = join('results', basename(modelpath.replace(".hdf5", "")))
     raw_out_dir = join(output_dir, 'raw_output')
     fin_out_dir = join(output_dir, 'final_output')
     fig_out_dir = join(output_dir, 'qual_figs')
@@ -225,8 +229,9 @@ def test(test_list, label, model, modelpath):
         makedirs(fig_out_dir)
     except:
         pass
-
-    writer = make_result_csvfile(True, join('results', ""), test_list)
+    #make_result_csvfile(output_dir, test_list, outfile='', compute_dice=1, compute_recall=1, compute_precision=1)
+    make_result_csvfile(output_dir, test_list, outfile='raw_')
+    make_result_csvfile(output_dir, test_list, outfile='post_')
 
     for i, img in enumerate(tqdm(test_list)):
         sitk_img = sitk.ReadImage(test_list[i][0])
@@ -259,16 +264,13 @@ def test(test_list, label, model, modelpath):
         sitk.WriteImage(output_rawimg, join(raw_out_dir, img[0].split("/")[-1][:-7] + '_raw_output' + img[0][-7:]))
         sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
         sitk_mask = sitk.ReadImage(img[1])
-        #else:
-            #sitk_mask_first = sitk.ReadImage(img[1][0])
         gt_data = sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
-            #sitk_mask = sitk.ReadImage(img[1][1])
-            #gt_data += sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
-        #write_pridiction_to_file(gt_data, output_bin, 'both', path=join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]), label_path=test_list[i][0])
-        add_result_to_csvfile([img[0][:-7]], output_array, gt_data, output_dir, True)
+        add_result_to_csvfile([img[0][:-7]], output_array, gt_data, output_dir, outfile='raw_')
+        add_result_to_csvfile([img[0][:-7]], output_bin, gt_data, output_dir, outfile='post_')
         # Plot Qual Figure
-        #plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))
-
+        #plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))"""
+    compute_avg(output_dir, 'raw_', compute_dice=1, compute_recall=0, compute_precision=0)
+    compute_avg(output_dir, 'post_', compute_dice=1, compute_recall=0, compute_precision=0)
     print('Done.')
 
 
