@@ -115,3 +115,5 @@ history/
 predictions/
 results/
 *split_lists
+logs/
+np_files/

@@ -98,8 +98,10 @@ def write_all_labels(path):
 def preprosses_images(image, label_data):
     image -= np.min(image)
     image = image/ np.max(image)
-    image -= np.mean(image)
-    image = image / np.std(image)
+    image *= 255
+    #image -= np.mean(image)
+    #image = image / np.std(image)
+    #print("Inside")
     label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
     return image, label
 
