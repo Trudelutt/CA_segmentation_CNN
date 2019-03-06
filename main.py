@@ -64,7 +64,8 @@ def main(args):
     #overwrite = False
     gpu_config()
     # label must be noe of the coronary arteries
-    modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + '_batch4_aug'+ ".hdf5"
+    modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + '_batch'+ str(args.batch_size)\
+    +"_channels"+ str(args.channels) + "_stride"+str(args.stride)+ "_aug" +str(args.aug) +".hdf5"
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
@@ -79,14 +80,14 @@ def main(args):
 
     if args.train:
         prediction_model, train_data, label_data, val_data, val_label = get_model(args, train_files[:1], val_files[:1])
-        train_model(prediction_model, train_files, val_files, args, modelpath=modelpath)
+        train_model(args,prediction_model, train_files, val_files, modelpath=modelpath)
         #prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
 
     if args.test:
         print("Loading model")
         prediction_model= load_model(modelpath, custom_objects=custom_objects)
-        test(test_files, args.label, prediction_model, modelpath)
+        test(args, test_files, args.label, prediction_model, modelpath)
 
 
 if __name__ == '__main__':
@@ -109,8 +110,14 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str.lower, default='dice', choices=['bce', 'w_bce', 'dice', 'mar', 'w_mar'],
                         help='Which loss to use. "bce" and "w_bce": unweighted and weighted binary cross entropy'
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
-    parser.add_argument('--batch_size', type=int, default=1,
-                        help='Batch size for training/testing.')
+    parser.add_argument('--batch_size', type=int, default=4,
+                        help='Batch size for training.')
+    parser.add_argument('--channels', type=int, default=5,
+                        help='Number of channels to take in the model.')
+    parser.add_argument('--stride', type=int, default=1,
+                        help='Stride of the slides to take in the channels.')
+    parser.add_argument('--aug', type=int, default=0, choices=[0,1],
+                        help='Set to 1 to enable augmentation.')
     parser.add_argument('--initial_lr', type=float, default=0.0001,
                         help='Initial learning rate for Adam.')
     parser.add_argument('--thresh_level', type=float, default=0.,

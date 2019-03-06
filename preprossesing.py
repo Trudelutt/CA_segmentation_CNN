@@ -98,7 +98,9 @@ def write_all_labels(path):
 def preprosses_images(image, label_data):
     image -= np.min(image)
     image = image/ np.max(image)
-    image *= 255
+    image -= np.mean(image)
+    image = image / np.std(image)
+    #image *= 255
     label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
     return image, label
 
@@ -135,50 +137,32 @@ def remove_slices_with_just_background(image, label):
     return resize_image, resize_label
 
     #Channels must be an odd numbers
-def add_neighbour_slides_training_data(image, label, stride=1, channels=5):
-    print("Inside add channels")
+def add_neighbour_slides_training_data(image, label, stride=5, channels=5):
     padd = channels//2
     image_with_channels = np.zeros((image.shape[0], image.shape[1], image.shape[2], channels))
     zeros_image = np.zeros(image[0].shape)
     for i in range(image.shape[0]):
-        if(i< padd):
-            count = padd
-            print("FIRST padd")
-            for channel in range(channels -(padd-i)):
-                print(channels-channel-1, i + count)
+        if(i< padd * stride):
+            count = padd * stride
+            for channel in range(channels -(padd -i//stride)):
+                #print(channels-channel-1, i + count)
                 image_with_channels[i][...,channels - channel-1] = image[i+count]
                 count -= stride
-            print("SLUTT")
 
-        elif i >= (image.shape[0]-padd):
-            print("LASt")
-            count = - padd
-            for channel in range((image.shape[0]-i + padd)):
-                print(channel, count)
+        elif i >= (image.shape[0]-(padd*stride)):
+            count = - (padd * stride)
+            for channel in range((image.shape[0]-i) +padd ):
+                if (i + count) >= (image.shape[0]):
+                    break
+            #    print(channel, count+i)
                 image_with_channels[i][...,channel] = image[i + count]
                 count += stride
-            print("nFinished")
+            #print("nFinished")
         else:
-            count = - padd
+            count = - (padd * stride)
             for channel in range(channels):
                 image_with_channels[i][...,channel] = image[i + count]
                 count += stride
-
-
-    #TODO check if channels becomes right for training 0. 1. and the last ones
-    print("check channels")
-    if np.array_equal(image_with_channels[5][...,0], image[3]):
-        print("HURRA channel 0 er riktig")
-    if np.array_equal(image_with_channels[5][...,1], image[4]):
-        print("HURRA channel 1 er riktig")
-    if np.array_equal(image_with_channels[5][...,2], image[5]):
-        print("HURRA channel 2 er riktig")
-    if np.array_equal(image_with_channels[5][...,3], image[6]):
-        print("HURRA channel 3 er riktig")
-    if np.array_equal(image_with_channels[5][...,4], image[7]):
-        print("HURRA channel 4 er riktig")
-    #print(np.unique(np.array_equal(image_with_channels[...,0], image)))
-    #label = label_data.reshape((label_data.shape[0], label_data.shape[1], label_data.shape[2], 1))
     return image_with_channels, label
 
 
@@ -231,10 +215,10 @@ def show_nii_image(path, slice_nr):
     plt.imshow(image[slice_nr])
 
 #TODO make sure that index not out of bounds
-def get_prediced_image_of_test_files(files, number, tag):
+def get_prediced_image_of_test_files(args,files, number, tag):
     element = files[number]
     print("Prediction on " + element[0])
-    return get_slices(files[number:number+1], tag)
+    return get_slices(args,files[number:number+1], tag)
 
 
 
@@ -245,15 +229,14 @@ def get_data_files(data_root_dir, label="LM"):
     return split_train_val_test(files)
 
 
-def get_train_data_slices(train_files, tag = "LM"):
+def get_train_data_slices(args, train_files, tag = "LM"):
     traindata = []
     labeldata = []
     count_slices = 0
-    channels=5
     for element in train_files:
         print(element[0])
         numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(element[0], element[1])
-        i, l = add_neighbour_slides_training_data(numpy_image, numpy_label, channels=channels)
+        i, l = add_neighbour_slides_training_data(numpy_image, numpy_label, stride= args.stride, channels=args.channels)
         resized_image, resized_label = remove_slices_with_just_background(i, l)
 
         count_slices += resized_image.shape[0]
@@ -267,7 +250,7 @@ def get_train_data_slices(train_files, tag = "LM"):
     return train_data, label_data
 
 
-def get_slices(files, tag="LM"):
+def get_slices(args, files, tag="LM"):
     input_data_list = []
     label_data_list = []
     count_slices = 0
@@ -276,7 +259,7 @@ def get_slices(files, tag="LM"):
         numpy_image = np.float32(numpy_image)
         numpy_image -= np.mean(numpy_image)
         numpy_image = numpy_image / np.std(numpy_image)
-        i, l = add_neighbour_slides_training_data(numpy_image, numpy_label)
+        i, l = add_neighbour_slides_training_data(numpy_image, numpy_label,stride=args.stride, channels= args.channels)
         count_slices += i.shape[0]
         input_data_list.append(i)
         label_data_list.append(l)

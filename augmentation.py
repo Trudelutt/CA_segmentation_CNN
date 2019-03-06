@@ -20,15 +20,32 @@ def get_ploting_read_mask(mask):
     new_mask[...,0] = mask[...,0]
     return new_mask
 
+def convert_to_uint8(numpy_array):
+    conv_numpy = np.uint8(numpy_array)
+    for batch in range(numpy_array.shape[0]):
+        for channel in range(numpy_array.shape[-1]):
+            conv_numpy[batch][...,channel] -= np.min(conv_numpy[batch][...,channel])
+            conv_numpy[batch][...,channel] = conv_numpy[batch][...,channel] / np.max(conv_numpy[batch][...,channel])
+            conv_numpy[batch][...,channel] *= 255
+    return conv_numpy
+
+def convert_to_float32(nump_array):
+    conv_numpy = np.float32(numpy_array)
+    for batch in range(numpy_array.shape[0]):
+        for channel in range(numpy_array.shape[-1]):
+            conv_numpy[batch][...,channel] -= np.mean(conv_numpy[batch][...,channel])
+            conv_numpy[batch][...,channel] = conv_numpy[batch][...,channel] / np.std(conv_numpy[batch][...,channel])
+    return conv_nump
+
+
 def augmentImages(batch_of_images, batch_of_mask, debugg= False):
-    images_mask_batch = np.concatenate((np.uint8(batch_of_images), batch_of_mask), axis=3)
+    uint8_batch_of_images = convert_to_uint8(batch_of_images)
+    images_mask_batch = np.concatenate((np.uint8(uint8_batch_of_images), batch_of_mask), axis=3)
     #print(images_mask_batch.shape)
     aug_images, aug_mask = add_afine_transformations(images_mask_batch)
-    aug_images = add_brightness(aug_images)
+    uint8_aug_images = add_brightness(aug_images)
     #iaa.Sometimes(0.5, aug)
-    aug_images = np.float32(aug_images)
-    aug_images -= np.mean(aug_images)
-    aug_images = aug_images / np.std(aug_images)
+    aug_images = convert_to_float32(uint8_aug_images)
     if(debugg):
         count = 0
         for i in range(len(aug_images)):
@@ -59,7 +76,7 @@ def augmentImages(batch_of_images, batch_of_mask, debugg= False):
 
 
 def add_brightness(images_batch):
-    sometimes = lambda aug: iaa.Sometimes(0.2, aug)
+    sometimes = lambda aug: iaa.Sometimes(0.1, aug)
     seq = iaa.Sequential([sometimes(iaa.SomeOf((0, None),[
     #seq = iaa.Sequential([iaa.SomeOf(1,[
     iaa.Multiply((0.2, 1.5)),
@@ -70,7 +87,7 @@ def add_brightness(images_batch):
 
 
 def add_afine_transformations(images_mask_batch):
-    sometimes = lambda aug: iaa.Sometimes(0.2, aug)
+    sometimes = lambda aug: iaa.Sometimes(0.1, aug)
     seq = iaa.Sequential([sometimes(iaa.SomeOf((0,None),[
     iaa.Affine(scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},order=[0],
     cval=0,

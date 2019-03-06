@@ -206,7 +206,7 @@ def plot_gt_predtion_on_slices(img_data, output_bin, gt_data, path):
 
 
 
-def test(test_list, label, model, modelpath):
+def test(args, test_list, label, model, modelpath):
     print("Inside test")
     """if args.weights_path == '':
         weights_path = join(args.check_dir, args.output_name + '_model_' + args.time + '.hdf5')
@@ -245,7 +245,7 @@ def test(test_list, label, model, modelpath):
             output= output[:num_slices]
 
         else:
-            pred_sample, pred_label = get_prediced_image_of_test_files(test_list, i, tag=label)
+            pred_sample, pred_label = get_prediced_image_of_test_files(args, test_list, i, tag=label)
             print("gathered pred_sample")
             output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
 

@@ -24,7 +24,7 @@ from keras.preprocessing.image import *
 from preprossesing import *
 
 
-def convert_data_to_numpy(img_name, no_masks=False, overwrite=False, train=False):
+def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train=False):
     print("Converting numpy")
     fname = basename(img_name[1])[:-7]
     numpy_path = 'np_files'
@@ -49,7 +49,7 @@ def convert_data_to_numpy(img_name, no_masks=False, overwrite=False, train=False
 
     try:
         numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path)
-        img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label)
+        img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, args.stride, args.channels)
         if train:
             img, mask = remove_slices_with_just_background(img, mask)
 
@@ -101,12 +101,12 @@ def threadsafe_generator(f):
     return g
 
 @threadsafe_generator
-def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
-                           stride=1, downSampAmt=1, shuff=1, aug_data=1):
+def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
+                           stride=1, downSampAmt=1, shuff=1, aug_data=0):
     # Create placeholders for training
     #print("HEHE")
     #print(net_input_shape)
-    img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.float32)
+    img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
     mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
     #print("INSIDE train")
     while True:
@@ -123,12 +123,11 @@ def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1,
                     train_mask = data['mask']
             except:
                 print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
-                train_img, train_mask = convert_data_to_numpy(scan_name, train=True)
+                train_img, train_mask = convert_data_to_numpy(args, scan_name, train=True)
                 if np.array_equal(train_img,np.zeros(1)):
                     continue
                 else:
                     print('\nFinished making npz file.')
-
             indicies = np.arange(train_img.shape[0])
             if shuff:
                 shuffle(indicies)
@@ -137,7 +136,7 @@ def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1,
                 #if not np.any(train_mask[:, :, j:j + numSlices * (subSampAmt+1):subSampAmt+1]):
                     #continue
                 if img_batch.ndim == 4:
-                    #j= 25
+
                     img_batch[count:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:] = train_mask[j:j+1]
 
@@ -149,19 +148,14 @@ def generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=1,
                 if count % batchSize == 0:
                     count = 0
                     if aug_data:
-                        #print("h")
                         img_batch, mask_batch = augmentImages(img_batch, mask_batch, debugg= False)
                     yield (img_batch, mask_batch)
 
 @threadsafe_generator
-def generate_val_batches(train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
-                           stride=1, downSampAmt=1, shuff=1, aug_data=1):
-    # Create placeholders for training
-    #print("HEHE")
-    #print(net_input_shape)
-    img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,5)))), dtype=np.float32)
+def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
+                           stride=1, downSampAmt=1, shuff=1, aug_data=0):
+    img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
     mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
-    #print("INSIDE train")
     while True:
         if shuff:
             shuffle(train_list)
@@ -176,7 +170,7 @@ def generate_val_batches(train_list, net_input_shape=(512,512,5), batchSize=1, n
                     train_mask = data['mask']
             except:
                 print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
-                train_img, train_mask = convert_data_to_numpy(scan_name, train=False)
+                train_img, train_mask = convert_data_to_numpy(args,scan_name, train=False)
                 if np.array_equal(train_img,np.zeros(1)):
                     continue
                 else:
@@ -185,7 +179,6 @@ def generate_val_batches(train_list, net_input_shape=(512,512,5), batchSize=1, n
             indicies = np.arange(train_img.shape[0])
             if shuff:
                 shuffle(indicies)
-            print(img_batch.shape)
             for j in indicies:
                 #if not np.any(train_mask[:, :, j:j + numSlices * (subSampAmt+1):subSampAmt+1]):
                     #continue
@@ -212,12 +205,12 @@ if __name__ == "__main__":
     #img_slices, lab_slices = get_train_data_slices(train[2:4])
     #print(img_slices.shape)
 
-    traingen= generate_train_batches(train[2:3],net_input_shape=(512,512,5), batchSize=32)
+    traingen= generate_train_batches(args,train[2:3],net_input_shape=(512,512,5), batchSize=32)
     i, l = traingen.next()
     count= 0
-    for img in i:
-        scipy.misc.imsave("./logs/aug_image_" + str(count)  +".png", img[...,2])
-        count += 1
+    #for img in i:
+        #scipy.misc.imsave("./logs/aug_image_" + str(count)  +".png", img[...,2])
+        #count += 1
     #traingen.next()
     #i, l = traingen.next()
     """print("###")

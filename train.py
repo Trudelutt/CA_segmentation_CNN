@@ -25,19 +25,17 @@ def getCallBacks(modelpath):
 
 
 
-def train_model(model, train_list,val_list, args, modelpath):
-    print("Inside training")
-
+def train_model(args, model, train_list,val_list, modelpath):
     #model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
     #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
     #history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
     #print(train_list)
-    history = model.fit_generator(generate_train_batches(train_list, net_input_shape=(512,512,5), batchSize=4),
+    history = model.fit_generator(generate_train_batches(args, train_list, net_input_shape=(512,512,args.channels), batchSize=args.batch_size,aug_data=args.aug),
       epochs=500,
-      steps_per_epoch= int(200*len(train_list)/4),
+     steps_per_epoch= int(200*len(train_list)/args.batch_size),
        verbose=1,
         callbacks=getCallBacks(modelpath),
-        validation_data= generate_val_batches(val_list, net_input_shape=(512,512,5), batchSize=1),
+        validation_data= generate_val_batches(args, val_list, net_input_shape=(512,512,5), batchSize=1, aug_data=0),
         validation_steps= int(200*len(val_list)), initial_epoch=0)
     with open('./history/'+ basename(modelpath).split('.')[0] + '.json', 'w') as f:
         json.dump(history.history, f)
