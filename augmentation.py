@@ -29,13 +29,13 @@ def convert_to_uint8(numpy_array):
             conv_numpy[batch][...,channel] *= 255
     return conv_numpy
 
-def convert_to_float32(nump_array):
+def convert_to_float32(numpy_array):
     conv_numpy = np.float32(numpy_array)
     for batch in range(numpy_array.shape[0]):
         for channel in range(numpy_array.shape[-1]):
             conv_numpy[batch][...,channel] -= np.mean(conv_numpy[batch][...,channel])
             conv_numpy[batch][...,channel] = conv_numpy[batch][...,channel] / np.std(conv_numpy[batch][...,channel])
-    return conv_nump
+    return conv_numpy
 
 
 def augmentImages(batch_of_images, batch_of_mask, debugg= False):

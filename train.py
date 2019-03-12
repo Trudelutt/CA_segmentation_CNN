@@ -35,7 +35,7 @@ def train_model(args, model, train_list,val_list, modelpath):
      steps_per_epoch= int(200*len(train_list)/args.batch_size),
        verbose=1,
         callbacks=getCallBacks(modelpath),
-        validation_data= generate_val_batches(args, val_list, net_input_shape=(512,512,5), batchSize=1, aug_data=0),
+        validation_data= generate_val_batches(args, val_list, net_input_shape=(512,512,args.channels), batchSize=1, aug_data=0),
         validation_steps= int(200*len(val_list)), initial_epoch=0)
     with open('./history/'+ basename(modelpath).split('.')[0] + '.json', 'w') as f:
         json.dump(history.history, f)

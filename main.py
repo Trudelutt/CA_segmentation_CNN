@@ -38,24 +38,26 @@ def get_model(args, train_files, val_files):
     if args.modelweights != None:
         custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
         'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
-        model = prediction_model = load_model(args.modelweights, custom_objects=custom_objects)
-    else:
-        if(args.model=="BVNet3D"):
-            train_data, label_data = get_training_patches(train_files, args.label, remove_only_background_patches=True)
-            val_data, val_label = get_training_patches(train_files, args.label)
-            model =  BVNet3D(input_size =train_data.shape[1:], loss=get_loss(args.loss))
-            return model, train_data, label_data, val_data, val_label
+        return load_model(args.modelweights, custom_objects=custom_objects)
+    #else:
+        #if(args.model=="BVNet3D"):
+            #train_data, label_data = get_training_patches(train_files, args.label, remove_only_background_patches=True)
+            #val_data, val_label = get_training_patches(train_files, args.label)
+            #model =  BVNet3D(input_size =train_data.shape[1:], loss=get_loss(args.loss))
+            #return model, train_data, label_data, val_data, val_label
 
     #train_data, label_data = get_train_data_slices(train_files, tag=args.label)
-    print("Done geting training slices...")
+    #print("Done geting training slices...")
     #val_data, val_label = get_slices(val_files, args.label)
-    print("Done geting validation slices...")
-    if args.modelweights == None:
+    #print("Done geting validation slices...")
+    else:
+        if(args.model=="BVNet3D"):
+            return BVNet3D(input_size =(64,64, 64, 1), loss=get_loss(args.loss))
         if(args.model=="BVNet"):
-            model = BVNet(input_size =(512,512,5), loss=get_loss(args.loss))
+            return BVNet(input_size =(512,512,5), loss=get_loss(args.loss))
         if(args.model == "unet"):
-            model = unet(input_size=train_data_shape, loss= get_loss(args.loss))
-    return model, None, None, None, None
+            return unet(input_size=(512,512,5), loss= get_loss(args.loss))
+    #return model, None, None, None, None
 
 def main(args):
     gpu_config()
@@ -64,10 +66,14 @@ def main(args):
     #overwrite = False
     gpu_config()
     # label must be noe of the coronary arteries
-    modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + '_batch'+ str(args.batch_size)\
-    +"_channels"+ str(args.channels) + "_stride"+str(args.stride)+ "_aug" +str(args.aug) +".hdf5"
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
+
+    if args.modelweights != None:
+        modelpath = args.modelweights
+    else:
+        modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + '_batch'+ str(args.batch_size)\
+        +"_channels"+ str(args.channels) + "_stride"+str(args.stride)+ "_aug" +str(args.aug) +".hdf5"
 
     #train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
     try:
@@ -79,7 +85,7 @@ def main(args):
         #prediction_model = get_model(args.model, args.modelweights, train_data.shape[1:], args.loss)
 
     if args.train:
-        prediction_model, train_data, label_data, val_data, val_label = get_model(args, train_files[:1], val_files[:1])
+        prediction_model = get_model(args, train_files[:1], val_files[:1])
         train_model(args,prediction_model, train_files, val_files, modelpath=modelpath)
         #prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 

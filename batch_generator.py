@@ -27,7 +27,8 @@ from preprossesing import *
 def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train=False):
     print("Converting numpy")
     fname = basename(img_name[1])[:-7]
-    numpy_path = 'np_files'
+    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D")
+
     img_path = img_name[0]
     mask_path = img_name[1]
     try:
@@ -48,10 +49,13 @@ def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train
             pass
 
     try:
-        numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path)
-        img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, args.stride, args.channels)
-        if train:
-            img, mask = remove_slices_with_just_background(img, mask)
+        if args.model =="BVNet3D":
+            img, mask = get_training_patches([img_path, mask_path], args.label, remove_only_background_patches=train)
+        else:
+            numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path)
+            img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, args.stride, args.channels)
+            if train:
+                img, mask = remove_slices_with_just_background(img, mask)
 
         if not no_masks:
             np.savez_compressed(join(numpy_path, fname + '.npz'), img=img, mask=mask)
@@ -108,6 +112,7 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
     #print(net_input_shape)
     img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
     mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
+    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D")
     #print("INSIDE train")
     while True:
         if shuff:
@@ -115,14 +120,13 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
         count = 0
         for i, scan_name in enumerate(train_list):
             try:
-                scan_name = scan_name
-                path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
+                path_to_np = join(numpy_path,basename(scan_name[1])[:-7]+'.npz')
                 with np.load(path_to_np) as data:
                     print(path_to_np)
                     train_img = data['img']
                     train_mask = data['mask']
             except:
-                print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
+                print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join(numpy_path,basename(scan_name[1])[:-7]+'.npz')))
                 train_img, train_mask = convert_data_to_numpy(args, scan_name, train=True)
                 if np.array_equal(train_img,np.zeros(1)):
                     continue
@@ -156,6 +160,7 @@ def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSiz
                            stride=1, downSampAmt=1, shuff=1, aug_data=0):
     img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
     mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
+    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D")
     while True:
         if shuff:
             shuffle(train_list)
@@ -163,13 +168,13 @@ def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSiz
         for i, scan_name in enumerate(train_list):
             try:
                 scan_name = scan_name
-                path_to_np = join('np_files',basename(scan_name[1])[:-7]+'.npz')
+                path_to_np = join(numpy_path,basename(scan_name[1])[:-7]+'.npz')
                 with np.load(path_to_np) as data:
                     print(path_to_np)
                     train_img = data['img']
                     train_mask = data['mask']
             except:
-                print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join('np_files',basename(scan_name[1])[:-7]+'.npz')))
+                print('\nPre-made numpy array not found for {}.\nCreating now...'.format(join(numpy_path,basename(scan_name[1])[:-7]+'.npz')))
                 train_img, train_mask = convert_data_to_numpy(args,scan_name, train=False)
                 if np.array_equal(train_img,np.zeros(1)):
                     continue
