@@ -34,7 +34,7 @@ def get_loss(loss):
     if loss == 'dice':
         return dice_coefficient_loss
 
-def get_model(args, train_files, val_files):
+def get_model(args, input_shape=(512,512,5) train_files, val_files):
     if args.modelweights != None:
         custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
         'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
@@ -54,9 +54,9 @@ def get_model(args, train_files, val_files):
         if(args.model=="BVNet3D"):
             return BVNet3D(input_size =(64,64, 64, 1), loss=get_loss(args.loss))
         if(args.model=="BVNet"):
-            return BVNet(input_size =(512,512,5), loss=get_loss(args.loss))
+            return BVNet(input_size =input_shape, loss=get_loss(args.loss))
         if(args.model == "unet"):
-            return unet(input_size=(512,512,5), loss= get_loss(args.loss))
+            return unet(input_size=input_shape, loss= get_loss(args.loss))
     #return model, None, None, None, None
 
 def main(args):
@@ -85,7 +85,7 @@ def main(args):
         #prediction_model = get_model(args.model, args.modelweights, train_data.shape[1:], args.loss)
 
     if args.train:
-        prediction_model = get_model(args, train_files[:1], val_files[:1])
+        prediction_model = get_model(args, input_shape=(512,512, args.channels),train_files[:1], val_files[:1])
         train_model(args,prediction_model, train_files, val_files, modelpath=modelpath)
         #prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
 
