@@ -277,10 +277,14 @@ def get_patches(image_numpy, label_numpy, remove_only_background_patches=False):
     label_patch_list = []
     orginal_shape = image_numpy.shape
     #print(orginal_shape)
+    #print(orginal_shape)
     image_numpy_padded = np.zeros((orginal_shape[0] + (orginal_shape[0] % 64), orginal_shape[1] + (orginal_shape[1] % 64), orginal_shape[2] + (orginal_shape[2] % 64)))
+    #print(image_numpy_padded.shape)
     image_numpy_padded[0:image_numpy.shape[0], 0:image_numpy.shape[1], 0:image_numpy.shape[2]] = image_numpy
     #print(image_numpy_padded.shape)
-    mask_padded = np.zeros(image_numpy_padded.shape)
+    mask_padded = np.zeros((image_numpy_padded.shape[0], image_numpy_padded.shape[1], image_numpy_padded.shape[2], 1))
+    #print(mask_padded.shape)
+    #print(label_numpy.shape)
     mask_padded[0:image_numpy.shape[0], 0:image_numpy.shape[1], 0:image_numpy.shape[2]] = label_numpy
     for z in xrange(64, image_numpy_padded.shape[0],64):
         for y in xrange(64, image_numpy_padded.shape[1],64):
@@ -344,11 +348,11 @@ def from_patches_to_numpy(patches, shape):
 
 
 if __name__ == "__main__":
-    train, val, test = get_train_val_test("both")
+    train_files, val, test = get_train_val_test("both")
     #pred, lab = get_prediced_image_of_test_files(test, 0, "both")
-    img_slices, lab_slices = get_train_data_slices(train[:1])
+    #img_slices, lab_slices = get_train_data_slices(train[:1])
 
-
+    get_training_patches(train_files[:2], label = "LM", remove_only_background_patches=False, return_shape=False)
     """print(test[0])
     x, y, orgshape = get_prediced_patches_of_test_file(test, 0, "both")
     label = from_patches_to_numpy(y, orgshape)

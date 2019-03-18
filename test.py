@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import scipy.ndimage.morphology
 from skimage import measure, filters
-from preprossesing import get_prediced_image_of_test_files, write_pridiction_to_file, get_prediced_patches_of_test_file, from_patches_to_numpy
+from preprossesing import *
 from loss_function import dice_coefficient
 from metric import recall, precision
 
@@ -204,6 +204,17 @@ def plot_gt_predtion_on_slices(img_data, output_bin, gt_data, path):
     plt.close('all')
 
 
+def create_and_write_viz_nii(name, meta_sitk, pred, gt):
+    print(np.unique(pred))
+    pred[pred > 0.] = 2.
+    print(np.unique(pred))
+    print(np.unique(gt))
+    vis_image = gt + pred
+    print(np.unique(vis_image))
+    viz_sitk = sitk.GetImageFromArray(vis_image)
+    viz_sitk.CopyInformation(meta_sitk)
+    sitk.WriteImage(viz_sitk, name)
+
 
 
 def test(args, test_list, label, model, modelpath):
@@ -245,7 +256,9 @@ def test(args, test_list, label, model, modelpath):
             output= output[:num_slices]
 
         else:
-            pred_sample, pred_label = get_prediced_image_of_test_files(args, test_list, i, tag=label)
+            #pred_sample, pred_label = get_prediced_image_of_test_files(args, test_list, i, tag=label)
+            numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img[0], img[1])
+            pred_sample, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, args.stride, args.channels)
             print("gathered pred_sample")
             output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
 
@@ -265,8 +278,10 @@ def test(args, test_list, label, model, modelpath):
         sitk.WriteImage(output_mask, join(fin_out_dir, img[0].split("/")[-1][:-7] + '_final_output' + img[0][-7:]))
         sitk_mask = sitk.ReadImage(img[1])
         gt_data = sitk.GetArrayFromImage(sitk_mask).astype(np.float32)
+
         add_result_to_csvfile([img[0][:-7]], output_array, gt_data, output_dir, outfile='raw_')
         add_result_to_csvfile([img[0][:-7]], output_bin, gt_data, output_dir, outfile='post_')
+        create_and_write_viz_nii(join(raw_out_dir, img[0].split("/")[-1][:-7] + '_viz_' + img[0][-7:]), sitk_img, output, gt_data)
         # Plot Qual Figure
         #plot_gt_predtion_on_slices(img_data, output_array, gt_data, join(fig_out_dir, img[0].split("/")[-1][:-7] + '_qual_fig' + '.png'))"""
     compute_avg(output_dir, 'raw_', compute_dice=1, compute_recall=0, compute_precision=0)

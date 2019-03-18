@@ -27,8 +27,8 @@ from preprossesing import *
 def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train=False):
     print("Converting numpy")
     fname = basename(img_name[1])[:-7]
-    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D")
-
+    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
+    print(numpy_path)
     img_path = img_name[0]
     mask_path = img_name[1]
     try:
@@ -50,7 +50,7 @@ def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train
 
     try:
         if args.model =="BVNet3D":
-            img, mask = get_training_patches([img_path, mask_path], args.label, remove_only_background_patches=train)
+            img, mask = get_training_patches([[img_path, mask_path]], args.label, remove_only_background_patches=train)
         else:
             numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path)
             img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, args.stride, args.channels)
@@ -107,12 +107,17 @@ def threadsafe_generator(f):
 @threadsafe_generator
 def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
                            stride=1, downSampAmt=1, shuff=1, aug_data=0):
-    # Create placeholders for training
-    #print("HEHE")
-    #print(net_input_shape)
-    img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
-    mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
-    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D")
+    # Create placeholders for training and numpy path
+    if args.model =="BVNet3D":
+        numpy_path = join('np_files', "numpy_3D")
+        img_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,args.channels)))), dtype=np.float32)
+        mask_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,1)))), dtype=np.uint8)
+        print("MAKE PLACEHOLDERS")
+
+    else:
+        numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
+        img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,args.channels)))), dtype=np.float32)
+        mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
     #print("INSIDE train")
     while True:
         if shuff:
@@ -144,7 +149,12 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
                     img_batch[count:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:] = train_mask[j:j+1]
 
+                if img_batch.ndim == 5:
+                    img_batch[count:,:,:,:] = train_img[j:j+1]
+                    mask_batch[count:,:,:,:] = train_mask[j:j+1]
+
                 else:
+                    print(img_batch.ndim)
                     print('Error this function currently only supports 2D and 3D data.')
                     exit(0)
 
@@ -158,9 +168,15 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
 @threadsafe_generator
 def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSize=1, numSlices=1, subSampAmt=-1,
                            stride=1, downSampAmt=1, shuff=1, aug_data=0):
-    img_batch = np.zeros((np.concatenate(((batchSize,), net_input_shape))), dtype=np.float32)
-    mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
-    numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' else join('np_files', "numpy_2D")
+    if args.model == 'BVNet3D':
+        numpy_path = join('np_files', "numpy_3D")
+        img_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,args.channels)))), dtype=np.float32)
+        mask_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,1)))), dtype=np.uint8)
+
+    else:
+        numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
+        img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,args.channels)))), dtype=np.float32)
+        mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
     while True:
         if shuff:
             shuffle(train_list)
@@ -190,7 +206,9 @@ def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSiz
                 if img_batch.ndim == 4:
                     img_batch[count:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:] = train_mask[j:j+1]
-
+                if img_batch.ndim == 5:
+                    img_batch[count:,:,:,:] = train_img[j:j+1]
+                    mask_batch[count:,:,:,:] = train_mask[j:j+1]
                 else:
                     print('Error this function currently only supports 2D and 3D data.')
                     exit(0)

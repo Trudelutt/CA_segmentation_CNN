@@ -30,6 +30,8 @@ def train_model(args, model, train_list,val_list, modelpath):
     #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
     #history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
     #print(train_list)
+    #gen = generate_train_batches(args, train_list[:1], net_input_shape=(512,512,args.channels), batchSize=args.batch_size,aug_data=args.aug)
+    #gen.next()
     history = model.fit_generator(generate_train_batches(args, train_list, net_input_shape=(512,512,args.channels), batchSize=args.batch_size,aug_data=args.aug),
       epochs=500,
      steps_per_epoch= int(200*len(train_list)/args.batch_size),
