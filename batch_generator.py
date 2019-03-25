@@ -118,7 +118,6 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
         numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
         img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,args.channels)))), dtype=np.float32)
         mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
-    #print("INSIDE train")
     while True:
         if shuff:
             shuffle(train_list)
@@ -149,12 +148,14 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
                     img_batch[count:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:] = train_mask[j:j+1]
 
-                if img_batch.ndim == 5:
+                elif img_batch.ndim == 5:
                     img_batch[count:,:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:,:] = train_mask[j:j+1]
 
                 else:
                     print(img_batch.ndim)
+                    print(train_img.shape)
+                    print(train_mask.shape)
                     print('Error this function currently only supports 2D and 3D data.')
                     exit(0)
 
@@ -206,7 +207,7 @@ def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSiz
                 if img_batch.ndim == 4:
                     img_batch[count:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:] = train_mask[j:j+1]
-                if img_batch.ndim == 5:
+                elif img_batch.ndim == 5:
                     img_batch[count:,:,:,:] = train_img[j:j+1]
                     mask_batch[count:,:,:,:] = train_mask[j:j+1]
                 else:
