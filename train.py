@@ -6,30 +6,40 @@ import json
 from keras.utils import to_categorical
 from keras.callbacks import ModelCheckpoint, EarlyStopping, TerminateOnNaN
 from keras.models import load_model
+from os.path import basename
 from model import unet, BVNet
 from preprossesing import *
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 from metric import *
 from loss_function import dice_coefficient_loss, dice_coefficient
+from test import test
+from batch_generator import generate_train_batches,generate_val_batches
 
 
-def gpu_config():
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth=True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.4
-    #set_session(tf.Session(config = config))
-    sess = tf.Session(config=config)
-    sess.run(tf.global_variables_initializer())
 
-
-def train_model(model, input, target, val_x, val_y, modelpath):
-    print("Inside training")
-
-    model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
+def getCallBacks(modelpath):
+    model_checkpoint = ModelCheckpoint(modelpath, monitor='val_loss',verbose=1, save_best_only=True)
     model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
-    history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=[model_checkpoint, model_earlyStopp, TerminateOnNaN()])
-    with open('./history/'+ modelpath + '.json', 'w') as f:
+    return [model_checkpoint, model_earlyStopp, TerminateOnNaN()]
+
+
+
+def train_model(args, model, train_list,val_list, modelpath):
+    #model_checkpoint = ModelCheckpoint("./models/"+ modelpath +".hdf5", monitor='val_loss',verbose=1, save_best_only=True)
+    #model_earlyStopp = EarlyStopping(monitor='val_loss', min_delta=0, patience=12, verbose=1, mode='min', baseline=None, restore_best_weights=False)
+    #history = model.fit(x=input, y= target, validation_data=(val_x, val_y), batch_size=4, epochs=500, verbose=1, callbacks=getCallBacks(modelpath))
+    #print(train_list)
+    #gen = generate_train_batches(args, train_list[:1], net_input_shape=(512,512,args.channels), batchSize=args.batch_size,aug_data=args.aug)
+    #gen.next()
+    history = model.fit_generator(generate_train_batches(args, train_list, net_input_shape=(512,512,args.channels), batchSize=args.batch_size,aug_data=args.aug),
+      epochs=500,
+     steps_per_epoch= int(200*len(train_list)/args.batch_size),
+       verbose=1,
+        callbacks=getCallBacks(modelpath),
+        validation_data= generate_val_batches(args, val_list, net_input_shape=(512,512,args.channels), batchSize=1, aug_data=0),
+        validation_steps= int(200*len(val_list)), initial_epoch=0)
+    with open('./history/'+ basename(modelpath).split('.')[0] + '.json', 'w') as f:
         json.dump(history.history, f)
         print("Saved history....")
 
@@ -49,15 +59,15 @@ def evaluation(model, test_files, label):
 
 if __name__ == "__main__":
     overwrite = False
-    gpu_config()
+    #gpu_config()
     model_name = "BVNet"
     # label must be noe of the coronary arteries
-    label = "RCA"
+    label = "both"
     modelpath = model_name+ "_"+ label
     custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
 
-    train_files, val_files, test_files = get_data_files( label=label)
+    train_files, val_files, test_files = get_data_files("../st.Olav", label=label)
     if  not overwrite:
         prediction_model= load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
     else:
@@ -65,15 +75,14 @@ if __name__ == "__main__":
         print("Done geting training slices...")
         val_data, val_label = get_slices(val_files, label)
         print("Done geting validation slices...")
-
         if model_name == "BVNet":
             model = BVNet(input_size =train_data.shape[1:])
-        else:
-            model_name="unet"
-            model = unet(input_size =train_data.shape[1:])
+
         train_model(model, train_data, label_data, val_data, val_label, modelpath=modelpath)
-        prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-    for i in range(len(test_files)):
+    print("Getting prediction model")
+    prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
+    test(test_files, label, prediction_model, modelpath)
+    """for i in xrange(len(test_files)):
         pred_sample, pred_label = get_prediced_image_of_test_files(test_files, i, tag=label)
         predict_model(prediction_model, pred_sample, pred_label, name=modelpath+"_"+str(i)+"_", label=label, label_path=test_files[i][1])
-    evaluation(prediction_model, test_files, label)
+    evaluation(prediction_model, test_files, label)"""
