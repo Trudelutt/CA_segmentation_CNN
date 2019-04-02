@@ -328,7 +328,7 @@ def from_patches_to_numpy(patches, shape):
     print(shape)
     reshape_patches = patches[...,0]
     print(reshape_patches.shape)
-    image_numpy = np.zeros(shape)
+    image_numpy = np.zeros(shape[:-1])
     i = 0
     for z in xrange(64, shape[0],64):
         for y in xrange(64, shape[1],64):

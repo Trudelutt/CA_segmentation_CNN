@@ -17,7 +17,7 @@ from preprossesing import *
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 from metric import *
-from loss_function import dice_coefficient_loss, dice_coefficient
+from loss_function import dice_coefficient_loss, dice_coefficient, load_class_weights, weighted_binary_crossentropy_loss
 from test import test
 from train import train_model
 #from augmentation import augmentImages
@@ -30,14 +30,18 @@ def gpu_config():
     sess = tf.Session(config=config)
     sess.run(tf.global_variables_initializer())
 
-def get_loss(loss):
+def get_loss(loss, label):
     if loss == 'dice':
         return dice_coefficient_loss
+    elif loss == 'w_bce':
+        pos_class_weight = load_class_weights(label=label)
+        return weighted_binary_crossentropy_loss(pos_class_weight)
 
 def get_model(args, input_shape=(512,512,5)):
     if args.modelweights != None:
         custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
-        'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
+        'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss,
+         'weighted_binary_crossentropy_loss': weighted_binary_crossentropy_loss}
         return load_model(args.modelweights, custom_objects=custom_objects)
     #else:
         #if(args.model=="BVNet3D"):
@@ -52,11 +56,11 @@ def get_model(args, input_shape=(512,512,5)):
     #print("Done geting validation slices...")
     else:
         if(args.model=="BVNet3D"):
-            return BVNet3D(input_size =(64,64, 64, 1), loss=get_loss(args.loss))
+            return BVNet3D(input_size =(64,64, 64, 1), loss=get_loss(args.loss, args.label))
         if(args.model=="BVNet"):
-            return BVNet(input_size =input_shape, loss=get_loss(args.loss))
+            return BVNet(input_size =input_shape, loss=get_loss(args.loss, args.label))
         if(args.model == "unet"):
-            return unet(input_size=input_shape, loss= get_loss(args.loss))
+            return unet(input_size=input_shape, loss= get_loss(args.loss, args.label))
     #return model, None, None, None, None
 
 def main(args):
@@ -113,7 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--label',type=str, default='RCA', choices=['RCA', 'LM', 'Aorta', 'both'],
                         help='Which loss to use. "bce" and "w_bce": unweighted and weighted binary cross entropy'
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
-    parser.add_argument('--loss', type=str.lower, default='dice', choices=['bce', 'w_bce', 'dice', 'mar', 'w_mar'],
+    parser.add_argument('--loss', type=str.lower, default='dice', choices=['w_bce', 'dice'],
                         help='Which loss to use. "bce" and "w_bce": unweighted and weighted binary cross entropy'
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
     parser.add_argument('--batch_size', type=int, default=4,

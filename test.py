@@ -26,7 +26,6 @@ K.set_image_data_format('channels_last')
 import scipy.ndimage as nd
 from skimage import measure
 
-#from load_3D_data import generate_test_batches
 
 def refine_binary(im, k=None):
     if k is None:
@@ -240,7 +239,7 @@ def test(args, test_list, label, model, modelpath):
         makedirs(fig_out_dir)
     except:
         pass
-    #make_result_csvfile(output_dir, test_list, outfile='', compute_dice=1, compute_recall=1, compute_precision=1)
+
     make_result_csvfile(output_dir, test_list, outfile='raw_')
     make_result_csvfile(output_dir, test_list, outfile='post_')
 
@@ -249,11 +248,11 @@ def test(args, test_list, label, model, modelpath):
         img_data = sitk.GetArrayFromImage(sitk_img)
         num_slices = img_data.shape[0]
         if "3D" in modelpath:
-            print("INSIDE 3D test")
-            pred_sample, pred_label, orgshape = get_prediced_patches_of_test_file(test_list, 0, "both")
-            output_array = model.predict(pred_sample,  batch_size=1, verbose=1)
-            output = from_patches_to_numpy(output_array, orgshape)
+            pred_sample, pred_label, orgshape = get_prediced_patches_of_test_file(test_list, i, "both")
+            pred_output = model.predict(pred_sample,  batch_size=1, verbose=1)
+            output = from_patches_to_numpy(pred_output, orgshape)
             output= output[:num_slices]
+            output_array = output.reshape(img_data.shape)
 
         else:
             #pred_sample, pred_label = get_prediced_image_of_test_files(args, test_list, i, tag=label)
