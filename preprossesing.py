@@ -105,7 +105,9 @@ def preprosses_images(image, label_data):
     return image, label
 
 
-def get_preprossed_numpy_arrays_from_file(image_path, label_path):
+def get_preprossed_numpy_arrays_from_file(image_path, label_path, frangi_input=0):
+    if frangi_input:
+        image_path = image_path.replace('CCTA', 'CCTA_Frangi')
     sitk_image  = sitk.ReadImage(image_path, sitk.sitkFloat32)
     numpy_image = sitk.GetArrayFromImage(sitk_image)
     sitk_label  = sitk.ReadImage(label_path )

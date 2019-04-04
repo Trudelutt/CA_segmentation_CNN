@@ -40,8 +40,7 @@ def get_loss(loss, label):
 def get_model(args, input_shape=(512,512,5)):
     if args.modelweights != None:
         custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
-        'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss,
-         'weighted_binary_crossentropy_loss': weighted_binary_crossentropy_loss}
+        'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
         return load_model(args.modelweights, custom_objects=custom_objects)
     #else:
         #if(args.model=="BVNet3D"):
@@ -70,8 +69,9 @@ def main(args):
     #overwrite = False
     gpu_config()
     # label must be noe of the coronary arteries
-    custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
-    'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
+    custom_objects = { 'binary_accuracy':binary_accuracy, 'recall':recall,
+    'precision':precision, 'dice_coefficient': dice_coefficient,
+     'dice_coefficient_loss': dice_coefficient_loss}
 
     if args.modelweights != None:
         modelpath = args.modelweights
@@ -122,6 +122,8 @@ if __name__ == '__main__':
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
     parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size for training.')
+    parser.add_argument('--frangi_input', type=int, default=0, choices=[0,1],
+                        help='Set the Frangi filter as input.')
     parser.add_argument('--channels', type=int, default=5,
                         help='Number of channels to take in the model.')
     parser.add_argument('--stride', type=int, default=1,
