@@ -10,3 +10,5 @@ tensorflow-gpu
 keras
 pandas
 sklearn
+pandas
+imgaug

@@ -37,6 +37,7 @@ def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train
     img_path = img_name[0]
     mask_path = img_name[1]
     try:
+        mkdir('np_files')
         mkdir(numpy_path)
     except:
         pass
