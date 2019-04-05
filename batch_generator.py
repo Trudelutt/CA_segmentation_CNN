@@ -117,7 +117,7 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
         numpy_path = join('np_files', "numpy_3D")
         img_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,args.channels)))), dtype=np.float32)
         mask_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,1)))), dtype=np.uint8)
-        print("MAKE PLACEHOLDERS")
+        #print("MAKE PLACEHOLDERS")
 
     else:
         if args.frangi_input:
@@ -134,7 +134,7 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
             try:
                 path_to_np = join(numpy_path,basename(scan_name[1])[:-7]+'.npz')
                 with np.load(path_to_np) as data:
-                    print(path_to_np)
+                    #print(path_to_np)
                     train_img = data['img']
                     train_mask = data['mask']
             except:
@@ -198,7 +198,7 @@ def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSiz
                 scan_name = scan_name
                 path_to_np = join(numpy_path,basename(scan_name[1])[:-7]+'.npz')
                 with np.load(path_to_np) as data:
-                    print(path_to_np)
+                    #print(path_to_np)
                     train_img = data['img']
                     train_mask = data['mask']
             except:
