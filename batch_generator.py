@@ -23,24 +23,68 @@ plt.ioff()
 from keras.preprocessing.image import *
 from preprossesing import *
 
+def get_done_prossed_samples_from_file(args, img_path, mask_path, train):
+    sitk_img = sitk.ReadImage(img_path)
+    if args.frangi_mode == None:
+        return get_preprossesed_samples_from_file(img_path, mask_path, train, args.model, args.label, args.channels, args.stride )
+    elif args.frangi_mode=='frangi_input':
+        return get_preprossesed_samples_from_file(img_path.replace('CCTA', 'CCTA_Frangi'), mask_path, train, args.model, args.label, args.channels, args.stride )
+
+    elif args.frangi_mode == 'frangi_mask':
+        return get_preprossesed_samples_from_file(img_path, mask_path.replace(args.label, 'CCTA_Frangi'), train, args.model, args.label, args.channels, args.stride )
+    elif args.frangi_mode == 'frangi_comb':
+        return  get_comb_samples(args, img_path, mask_path, train)
+    else:
+        print('Not implemented this frangi mode: ' +args.frangi_mode)
+        exit(0)
+
+
+
+
+def get_preprossesed_samples_from_file(img_path, mask_path, train, model, label, channels,stride):
+    if model =="BVNet3D":
+        img, mask = get_training_patches([[img_path, mask_path]], label, remove_only_background_patches=train)
+    else:
+        numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path)
+        img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, stride, channels)
+        if train:
+            img, mask = remove_slices_with_just_background(img, mask)
+        return img, mask
+
+def get_comb_samples(args, img_path, mask_path, train):
+    channel_for_each_input = args.channels/2
+    img, mask = get_preprossesed_samples_from_file(img_path, mask_path, train, args.model, args.label, channel_for_each_input,args.stride)
+    frangi, _mask = get_preprossesed_samples_from_file(img_path.replace('CCTA', 'CCTA_Frangi'), mask_path, train, args.model, args.label, channel_for_each_input,args.stride)
+    return np.concatenate((img, frangi), axis=3), mask
+
+
+
 
 def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train=False):
     print("Converting numpy")
     fname = basename(img_name[1])[:-7]
-    if args.frangi_input:
-        numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' \
-        else join('np_files', "numpy_2D_Frangi_channels" + str(args.channels) + "_stride" + str(args.stride))
-    else:
-        numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D' \
-        else join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
+    sub_numpy_folder =  "numpy_3D" if args.model == 'BVNet3D' else 'BVNet2D'
+    sub_numpy_folder += '_channels' + str(args.channels) + "_stride" + str(args.stride)
+
+    #numpy_path = join('np_files', "numpy_3D") if args.model == 'BVNet3D'
+    if args.frangi_mode== 'frangi_input':
+        sub_numpy_folder += "_Frangi_input"
+    elif args.frangi_mode == 'frangi_comb':
+        sub_numpy_folder += '_Frangi_comb'
+    elif args.frangi_mode == 'frangi_mask':
+        sub_numpy_folder += '_Frangi_mask'
+    numpy_path = join('np_files', sub_numpy_folder)
     print(numpy_path)
     img_path = img_name[0]
     mask_path = img_name[1]
     try:
         mkdir('np_files')
-        mkdir(numpy_path)
     except:
         pass
+        try:
+            mkdir(numpy_path)
+        except:
+            pass
 
     ct_min = -1024
     ct_max = 3072
@@ -55,13 +99,14 @@ def convert_data_to_numpy(args, img_name, no_masks=False, overwrite=False, train
             pass
 
     try:
-        if args.model =="BVNet3D":
+        img, mask = get_done_prossed_samples_from_file(args, img_path, mask_path, train)
+        """if args.model =="BVNet3D":
             img, mask = get_training_patches([[img_path, mask_path]], args.label, remove_only_background_patches=train)
         else:
-            numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path, args.frangi_input)
+            numpy_image, numpy_label = get_preprossed_numpy_arrays_from_file(img_path, mask_path, args.frangi_mode)
             img, mask = add_neighbour_slides_training_data(numpy_image, numpy_label, args.stride, args.channels)
             if train:
-                img, mask = remove_slices_with_just_background(img, mask)
+                img, mask = remove_slices_with_just_background(img, mask)"""
 
         if not no_masks:
             np.savez_compressed(join(numpy_path, fname + '.npz'), img=img, mask=mask)
@@ -115,18 +160,22 @@ def generate_train_batches(args,train_list, net_input_shape=(512,512,5), batchSi
                            stride=1, downSampAmt=1, shuff=1, aug_data=0):
     # Create placeholders for training and numpy path
     if args.model =="BVNet3D":
-        numpy_path = join('np_files', "numpy_3D")
+        numpy_path = join('np_files', "numpy_3D" + str(args.channels) + "_stride" + str(args.stride))
         img_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,args.channels)))), dtype=np.float32)
         mask_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,1)))), dtype=np.uint8)
         #print("MAKE PLACEHOLDERS")
 
     else:
-        if args.frangi_input:
-            numpy_path = join('np_files', "numpy_2D_Frangi_channels" + str(args.channels) + "_stride" + str(args.stride))
-        else:
-            numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
+        numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
         img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,args.channels)))), dtype=np.float32)
         mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
+    if args.frangi_mode== 'frangi_input':
+        numpy_path += "_Frangi_input"
+    elif args.frangi_mode == 'frangi_comb':
+        numpy_path += '_Frangi_comb'
+    elif args.frangi_mode == 'frangi_mask':
+        numpy_path += 'Frangi_mask'
+    print(numpy_path)
     while True:
         if shuff:
             shuffle(train_list)
@@ -184,12 +233,15 @@ def generate_val_batches(args, train_list, net_input_shape=(512,512,5), batchSiz
         mask_batch = np.zeros((np.concatenate(((batchSize,), (64,64,64,1)))), dtype=np.uint8)
 
     else:
-        if args.frangi_input:
-            numpy_path = join('np_files', "numpy_2D_Frangi_channels" + str(args.channels) + "_stride" + str(args.stride))
-        else:
-            numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
+        numpy_path = join('np_files', "numpy_2D_channels" + str(args.channels) + "_stride" + str(args.stride))
         img_batch = np.zeros((np.concatenate(((batchSize,), (512,512,args.channels)))), dtype=np.float32)
         mask_batch = np.zeros((np.concatenate(((batchSize,), (512,512,1)))), dtype=np.uint8)
+    if args.frangi_mode== 'frangi_input':
+        numpy_path += "_Frangi_input"
+    elif args.frangi_mode == 'frangi_comb':
+        numpy_path += '_Frangi_comb'
+    elif args.frangi_mode == 'frangi_mask':
+        numpy_path += '_Frangi_mask'
     while True:
         if shuff:
             shuffle(train_list)

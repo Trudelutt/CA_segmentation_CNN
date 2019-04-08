@@ -19,36 +19,45 @@ import nibabel as nib
 
 
 
-def create_split(data_root_dir, label):
+def create_split(data_root_dir, label, splits=4):
     print("Create split")
-    training_list = fetch_training_data_ca_files(data_root_dir,label)
-    training_val_list, test_list = train_test_split(training_list, test_size=0.1, random_state=7)
-    new_training_list, val_list = train_test_split(training_val_list, test_size=0.1, random_state=7)
-    outdir = label + '_split_lists'
+    outdir= "split_lists"
     try:
         mkdir(outdir)
     except:
-        print("Could not create foulder")
+        pass
+    for i in range(splits):
+        training_list = fetch_training_data_ca_files(data_root_dir,label)
+        training_val_list, test_list = train_test_split(training_list, test_size=0.1, random_state=i)
+        #TODO change name
+        new_training_list, val_list = train_test_split(training_val_list, test_size=0.1, random_state=i)
+        print("trainfiles: " + str(len(new_training_list)) + " val: " + str(len(val_list)) + " test: " + str(len(test_list)))
+        split_dir = join(outdir,label +'_' + str(i) + '_split_lists')
+        try:
+            mkdir(split_dir)
+        except:
+            print("Could not create foulder")
 
-    with open(join(outdir,'split_train.csv'), 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for sample in new_training_list:
-            writer.writerow([x for x in sample])
-    with open(join(outdir,'split_val.csv'), 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for sample in val_list:
-            writer.writerow([x for x in sample])
-    with open(join(outdir,'split_test.csv'), 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for sample in test_list:
-            writer.writerow([x for x in sample])
+        with open(join(split_dir,'split_train.csv'), 'w') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            for sample in new_training_list:
+                writer.writerow([x for x in sample])
+        with open(join(split_dir,'split_val.csv'), 'w') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            for sample in val_list:
+                writer.writerow([x for x in sample])
+        with open(join(split_dir,'split_test.csv'), 'w') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            for sample in test_list:
+                writer.writerow([x for x in sample])
 
-def get_train_val_test(label):
+def get_train_val_test(label, split_nr=0):
     train, val, test = [], [], []
-    outdir= label+ '_split_lists'
-    train = pd.read_csv(join(outdir,'split_train.csv'), sep=',',header=None).values
-    val = pd.read_csv(join(outdir,'split_val.csv'), sep=',',header=None).values
-    test = pd.read_csv(join(outdir,'split_test.csv'), sep=',',header=None).values
+    given_split_dir= join("split_lists", label + "_"+str(split_nr) + "_split_lists")
+    print(given_split_dir)
+    train = pd.read_csv(join(given_split_dir,'split_train.csv'), sep=',',header=None).values
+    val = pd.read_csv(join(given_split_dir,'split_val.csv'), sep=',',header=None).values
+    test = pd.read_csv(join(given_split_dir,'split_test.csv'), sep=',',header=None).values
     print("trainfiles: " + str(len(train)) + ", valfiles: " + str(len(val)) + ", testfiles: " + str(len(test)))
     return train, val, test
 
@@ -105,13 +114,27 @@ def preprosses_images(image, label_data):
     return image, label
 
 
-def get_preprossed_numpy_arrays_from_file(image_path, label_path, frangi_input=0):
-    if frangi_input:
-        image_path = image_path.replace('CCTA', 'CCTA_Frangi')
+def get_preprossed_numpy_arrays_from_file(image_path, label_path):
     sitk_image  = sitk.ReadImage(image_path, sitk.sitkFloat32)
     numpy_image = sitk.GetArrayFromImage(sitk_image)
     sitk_label  = sitk.ReadImage(label_path )
     numpy_label = sitk.GetArrayFromImage(sitk_label)
+    if not np.array_equal(np.unique(numpy_label), np.array([0.,1.])):
+        print("numpy is not binary mask")
+        #numpy_label = numpy_label / np.max(numpy_label)
+        #threshold = np.median(numpy_label)
+        print("UNique values")
+        print(np.unique(numpy_label))
+        frangi_with_threshold = np.zeros(numpy_label.shape)
+        frangi_with_threshold[np.where(numpy_label > 1)] = 1.0
+        print("it is suposed to be binary now")
+        print(np.unique(frangi_with_threshold))
+        frangi_sitk = sitk.GetImageFromArray(frangi_with_threshold)
+        frangi_sitk.CopyInformation(sitk_image)
+        sitk.WriteImage(frangi_sitk, join('logs','frangi_test', image_path.split("/")[-1][:-7] + '_frangi_mask' + image_path[-7:]))
+        return preprosses_images(frangi_with_threshold, numpy_label)
+
+
     return preprosses_images(numpy_image, numpy_label)
 
 
@@ -166,7 +189,6 @@ def add_neighbour_slides_training_data(image, label, stride=5, channels=5):
                 image_with_channels[i][...,channel] = image[i + count]
                 count += stride
     return image_with_channels, label
-
 
 
 def fetch_training_data_ca_files(data_root_dir,label="LM"):
@@ -225,10 +247,10 @@ def get_prediced_image_of_test_files(args,files, number, tag):
 
 
 # Assume to have some sitk image (itk_image) and label (itk_label)
-def get_data_files(data_root_dir, label="LM"):
+"""def get_data_files(data_root_dir, label="LM"):
     files = fetch_training_data_ca_files(data_root_dir,label)
     print("files: " + str(len(files)))
-    return split_train_val_test(files)
+    return split_train_val_test(files)"""
 
 
 def get_train_data_slices(args, train_files, tag = "LM"):
@@ -350,11 +372,13 @@ def from_patches_to_numpy(patches, shape):
 
 
 if __name__ == "__main__":
-    train_files, val, test = get_train_val_test("both")
+    create_split('../st.Olav', 'both')
+    #get_data_files("../st.Olav", label="both")
+    #train_files, val, test = get_train_val_test("both")
     #pred, lab = get_prediced_image_of_test_files(test, 0, "both")
     #img_slices, lab_slices = get_train_data_slices(train[:1])
-
-    get_training_patches(train_files[:2], label = "LM", remove_only_background_patches=False, return_shape=False)
+    #print(len(fetch_training_data_ca_files("../st.Olav",label="both")))
+    #get_training_patches(train_files[:2], label = "LM", remove_only_background_patches=False, return_shape=False)
     """print(test[0])
     x, y, orgshape = get_prediced_patches_of_test_file(test, 0, "both")
     label = from_patches_to_numpy(y, orgshape)

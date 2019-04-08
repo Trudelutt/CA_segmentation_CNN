@@ -42,17 +42,6 @@ def get_model(args, input_shape=(512,512,5)):
         custom_objects = custom_objects={ 'binary_accuracy':binary_accuracy, 'recall':recall,
         'precision':precision, 'dice_coefficient': dice_coefficient, 'dice_coefficient_loss': dice_coefficient_loss}
         return load_model(args.modelweights, custom_objects=custom_objects)
-    #else:
-        #if(args.model=="BVNet3D"):
-            #train_data, label_data = get_training_patches(train_files, args.label, remove_only_background_patches=True)
-            #val_data, val_label = get_training_patches(train_files, args.label)
-            #model =  BVNet3D(input_size =train_data.shape[1:], loss=get_loss(args.loss))
-            #return model, train_data, label_data, val_data, val_label
-
-    #train_data, label_data = get_train_data_slices(train_files, tag=args.label)
-    #print("Done geting training slices...")
-    #val_data, val_label = get_slices(val_files, args.label)
-    #print("Done geting validation slices...")
     else:
         if(args.model=="BVNet3D"):
             return BVNet3D(input_size =(64,64, 64, 1), loss=get_loss(args.loss, args.label))
@@ -66,34 +55,34 @@ def main(args):
     gpu_config()
     # Ensure training, testing, and manip are not all turned off
     assert ((args.train or args.test) and args.label ), 'Cannot have train, test, and label all set to 0, Nothing to do.'
+    assert(args.split_nr < args.splits), 'Splits needs to be greater than split number'
+    #assert(args.frangi_mode=='frangi_comb' and args.channels%2==0), 'Need to have channels divide on 2 if going to use both CCTA and frangi as input'
     #overwrite = False
     gpu_config()
-    # label must be noe of the coronary arteries
     custom_objects = { 'binary_accuracy':binary_accuracy, 'recall':recall,
     'precision':precision, 'dice_coefficient': dice_coefficient,
      'dice_coefficient_loss': dice_coefficient_loss}
-
+    try:
+        makedirs('models')
+    except:
+        pass
+    try:
+        makedirs('history')
+    except:
+        pass
     if args.modelweights != None:
         modelpath = args.modelweights
     else:
         modelpath = "./models/" +args.model+ "_"+ args.label + "_"+ args.loss + '_batch'+ str(args.batch_size)\
         +"_channels"+ str(args.channels) + "_stride"+str(args.stride)+ "_aug" +str(args.aug) +".hdf5"
-
-    #train_files, val_files, test_files = get_data_files(args.data_root_dir, label=args.label)
     try:
-        train_files, val_files, test_files = get_train_val_test(args.label)
+        train_files, val_files, test_files = get_train_val_test(args.label, args.split_nr)
     except:
-        create_split(args.data_root_dir, args.label)
-        train_files, val_files, test_files = get_train_val_test(args.label)
-
-        #prediction_model = get_model(args.model, args.modelweights, train_data.shape[1:], args.loss)
-
+        create_split(args.data_root_dir, args.label, args.splits)
+        train_files, val_files, test_files = get_train_val_test(args.label, args.split_nr)
     if args.train:
         prediction_model = get_model(args, input_shape=(512,512, args.channels))
         train_model(args,prediction_model, train_files, val_files, modelpath=modelpath)
-        #prediction_model = load_model('./models/' + modelpath +'.hdf5', custom_objects=custom_objects)
-
-
     if args.test:
         print("Loading model")
         prediction_model= load_model(modelpath, custom_objects=custom_objects)
@@ -122,12 +111,16 @@ if __name__ == '__main__':
                              '"dice": soft dice coefficient, "mar" and "w_mar": unweighted and weighted margin loss.')
     parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size for training.')
-    parser.add_argument('--frangi_input', type=int, default=0, choices=[0,1],
+    parser.add_argument('--frangi_mode', type=str, default=None, choices=[None,'frangi_input', 'frangi_comb', 'frangi_mask'],
                         help='Set the Frangi filter as input.')
     parser.add_argument('--channels', type=int, default=5,
                         help='Number of channels to take in the model.')
     parser.add_argument('--stride', type=int, default=1,
                         help='Stride of the slides to take in the channels.')
+    parser.add_argument('--splits', type=int, default=4,
+                        help='Number of different datasplits.')
+    parser.add_argument('--split_nr', type=int, default=0,
+                        help='Given split to train/test')
     parser.add_argument('--aug', type=int, default=0, choices=[0,1],
                         help='Set to 1 to enable augmentation.')
     parser.add_argument('--initial_lr', type=float, default=0.0001,
